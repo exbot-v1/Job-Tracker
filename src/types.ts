@@ -3,8 +3,9 @@ export type PaymentStatus = 'pending' | 'paid';
 
 export interface Profile {
   id: string;
-  user_id: string;
+  user_id?: string;
   name: string;
+  display_name?: string;
   email?: string;
   created_at: string;
   updated_at: string;
@@ -37,11 +38,16 @@ export interface Contract {
   id: string;
   user_id: string;
   name: string;
+  title?: string;
   monthly_reference_minutes: number; // default 90
   milestone_minutes: number;         // default 90
+  milestone_runtime_minutes?: number;
   milestone_payment: number;         // default 25000 (৳)
+  milestone_amount?: number;
   total_contract_value: number;      // default 150000 (৳)
+  total_contract_amount?: number;
   total_required_minutes: number;    // default 540 (90 * 6)
+  total_runtime_minutes?: number;
   start_date: string;
   status: ContractStatus;
   created_at: string;
@@ -55,6 +61,7 @@ export interface Video {
   title: string;
   duration_seconds: number;
   completion_date: string; // YYYY-MM-DD
+  completed_at?: string;   // Database column alias
   youtube_url?: string | null;
   notes?: string | null;
   created_at: string;
@@ -67,8 +74,14 @@ export interface PaymentRecord {
   contract_id: string;
   milestone_number: number;
   milestone_minutes: number;
+  runtime_threshold_minutes?: number;
   earned_amount: number;
+  amount?: number;
   payment_status: PaymentStatus;
+  earned?: boolean;
+  earned_at?: string | null;
+  paid?: boolean;
+  paid_at?: string | null;
   payment_date?: string | null;
   actual_amount_received?: number | null;
   notes?: string | null;
