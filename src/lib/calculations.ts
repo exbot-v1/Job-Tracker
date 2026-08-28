@@ -1,4 +1,15 @@
-import { Contract, Video, ContractProgress, MilestoneInfo, MonthlyStat, AnalyticsData, PaymentRecord } from '../types';
+import {
+  Contract,
+  Video,
+  ContractProgress,
+  MilestoneInfo,
+  MonthlyStat,
+  AnalyticsData,
+  PaymentRecord,
+  CycleVideoContribution,
+  EditingCycle,
+  EditingCyclesSummary,
+} from '../types';
 
 /**
  * Format currency amount with Bangladeshi Taka sign ৳
@@ -431,4 +442,198 @@ export function calculateMonthlyPace(
       percentageOfTarget,
     };
   }
+}
+
+/**
+ * Pure 90-Minute Video Editing Cycle Calculation Engine
+ * 
+ * Invariants strictly enforced:
+ * 1. Videos are processed chronologically (completed_at -> created_at -> id).
+ * 2. Videos crossing milestone boundaries are logically split into contributions without modifying the original video record.
+ * 3. Sum of all cycle contribution seconds equals the total completed seconds (capped at 540 min contract limit).
+ * 4. Never lose seconds, never double count seconds.
+ * 5. Exactly 6 payable contract cycles (540 min / ৳150,000 total).
+ */
+export function calculateEditingCycles(
+  videos: Video[],
+  contract: Contract,
+  payments: PaymentRecord[] = []
+): EditingCyclesSummary {
+  const milestoneMinutes = contract.milestone_minutes || contract.milestone_runtime_minutes || 90;
+  const milestoneSeconds = milestoneMinutes * 60;
+  const milestonePayment = contract.milestone_payment || contract.milestone_amount || 25000;
+  const totalRequiredMinutes = contract.total_required_minutes || contract.total_runtime_minutes || 540;
+  const totalRequiredSeconds = totalRequiredMinutes * 60;
+  const totalContractValue = contract.total_contract_value || contract.total_contract_amount || 150000;
+  const totalCyclesCount = Math.max(1, Math.round(totalRequiredMinutes / milestoneMinutes));
+
+  // Sort completed videos strictly chronologically
+  const sortedVideos = [...videos].sort((a, b) => {
+    const dateA = a.completion_date || a.completed_at || '';
+    const dateB = b.completion_date || b.completed_at || '';
+    const dateCmp = dateA.localeCompare(dateB);
+    if (dateCmp !== 0) return dateCmp;
+
+    const createdA = a.created_at || '';
+    const createdB = b.created_at || '';
+    const createdCmp = createdA.localeCompare(createdB);
+    if (createdCmp !== 0) return createdCmp;
+
+    return a.id.localeCompare(b.id);
+  });
+
+  // Pre-populate all contract cycles (1 to totalCyclesCount, e.g. 1 to 6)
+  const cycles: EditingCycle[] = [];
+  for (let i = 1; i <= totalCyclesCount; i++) {
+    const paymentRecord = payments.find((p) => p.milestone_number === i);
+    const isPaid = paymentRecord?.payment_status === 'paid' || paymentRecord?.paid === true;
+
+    cycles.push({
+      cycleNumber: i,
+      targetMinutes: milestoneMinutes,
+      targetSeconds: milestoneSeconds,
+      completedSeconds: 0,
+      completedMinutes: 0,
+      completedFormatted: '00:00',
+      remainingSeconds: milestoneSeconds,
+      remainingMinutes: milestoneMinutes,
+      progressPercentage: 0,
+      status: 'upcoming',
+      isEarned: false,
+      isPaid,
+      paymentAmount: milestonePayment,
+      actualAmountReceived: paymentRecord?.actual_amount_received ?? (isPaid ? milestonePayment : null),
+      paymentDate: paymentRecord?.payment_date ?? null,
+      paymentRecord,
+      contributions: [],
+      completedAtDate: null,
+    });
+  }
+
+  let currentCycleIdx = 0;
+
+  for (const video of sortedVideos) {
+    let videoRemainingSeconds = Math.max(0, video.duration_seconds || 0);
+    if (videoRemainingSeconds <= 0) continue;
+
+    const originalDurationSeconds = video.duration_seconds;
+    const completionDate = video.completion_date || video.completed_at || '';
+
+    while (videoRemainingSeconds > 0 && currentCycleIdx < totalCyclesCount) {
+      const cycle = cycles[currentCycleIdx];
+      const cycleNeededSeconds = milestoneSeconds - cycle.completedSeconds;
+
+      if (cycleNeededSeconds <= 0) {
+        currentCycleIdx++;
+        continue;
+      }
+
+      const allocatedSeconds = Math.min(videoRemainingSeconds, cycleNeededSeconds);
+      const isPartial = allocatedSeconds < originalDurationSeconds;
+      const partialPercentage = originalDurationSeconds > 0
+        ? Math.round((allocatedSeconds / originalDurationSeconds) * 1000) / 10
+        : 100;
+
+      cycle.contributions.push({
+        videoId: video.id,
+        videoTitle: video.title,
+        originalDurationSeconds,
+        originalDurationFormatted: formatSecondsDigital(originalDurationSeconds, true),
+        contributionSeconds: allocatedSeconds,
+        contributionMinutes: allocatedSeconds / 60,
+        contributionFormatted: formatSecondsDigital(allocatedSeconds, true),
+        completionDate,
+        completedAt: video.completed_at || video.completion_date,
+        youtubeUrl: video.youtube_url,
+        notes: video.notes,
+        isPartialContribution: isPartial,
+        partialPercentage,
+      });
+
+      cycle.completedSeconds += allocatedSeconds;
+      videoRemainingSeconds -= allocatedSeconds;
+
+      // If this cycle is completely filled
+      if (cycle.completedSeconds >= milestoneSeconds) {
+        cycle.completedAtDate = completionDate;
+        currentCycleIdx++;
+      }
+    }
+  }
+
+  // Update calculated metrics per cycle
+  let completedCyclesCount = 0;
+  let totalCompletedSecondsAcrossContract = 0;
+
+  for (let i = 0; i < cycles.length; i++) {
+    const cycle = cycles[i];
+    totalCompletedSecondsAcrossContract += cycle.completedSeconds;
+    cycle.completedMinutes = cycle.completedSeconds / 60;
+    cycle.completedFormatted = formatSecondsDigital(cycle.completedSeconds, true);
+    cycle.remainingSeconds = Math.max(0, cycle.targetSeconds - cycle.completedSeconds);
+    cycle.remainingMinutes = cycle.remainingSeconds / 60;
+    cycle.progressPercentage = Math.min(100, (cycle.completedSeconds / cycle.targetSeconds) * 100);
+
+    if (cycle.completedSeconds >= cycle.targetSeconds) {
+      cycle.status = 'completed';
+      cycle.isEarned = true;
+      completedCyclesCount++;
+    } else if (cycle.completedSeconds > 0) {
+      cycle.status = 'in_progress';
+      cycle.isEarned = false;
+    } else {
+      cycle.status = 'upcoming';
+      cycle.isEarned = false;
+    }
+  }
+
+  const allCompletedCycles = cycles.filter((c) => c.status === 'completed');
+  const latestCompletedCycle = allCompletedCycles.length > 0
+    ? allCompletedCycles[allCompletedCycles.length - 1]
+    : null;
+
+  // Active in-progress cycle (or the next upcoming cycle to be started, if not all 6 are completed)
+  let currentInProgressCycle: EditingCycle | null = null;
+  if (completedCyclesCount < totalCyclesCount) {
+    currentInProgressCycle = cycles[completedCyclesCount];
+  }
+
+  const upcomingCycles = cycles.filter((c) => c.status === 'upcoming');
+
+  const totalEarnedAmount = Math.min(
+    totalContractValue,
+    completedCyclesCount * milestonePayment
+  );
+
+  const totalPaidAmount = cycles
+    .filter((c) => c.isPaid)
+    .reduce((sum, c) => sum + (c.actualAmountReceived ?? c.paymentAmount), 0);
+
+  const contractProgressPercentage = Math.min(
+    100,
+    (totalCompletedSecondsAcrossContract / totalRequiredSeconds) * 100
+  );
+
+  const isContractCompleted = completedCyclesCount >= totalCyclesCount;
+  const remainingRuntimeMinutes = Math.max(0, (totalRequiredSeconds - totalCompletedSecondsAcrossContract) / 60);
+  const remainingContractValue = Math.max(0, totalContractValue - totalEarnedAmount);
+
+  return {
+    cycles,
+    completedCyclesCount,
+    totalCyclesCount,
+    latestCompletedCycle,
+    currentInProgressCycle,
+    upcomingCycles,
+    allCompletedCycles,
+    totalContractSeconds: totalRequiredSeconds,
+    totalCompletedSeconds: totalCompletedSecondsAcrossContract,
+    totalCompletedMinutes: totalCompletedSecondsAcrossContract / 60,
+    totalEarnedAmount,
+    totalPaidAmount,
+    contractProgressPercentage,
+    isContractCompleted,
+    remainingRuntimeMinutes,
+    remainingContractValue,
+  };
 }

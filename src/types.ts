@@ -172,3 +172,59 @@ export interface ToastMessage {
   message?: string;
   duration?: number;
 }
+
+export interface CycleVideoContribution {
+  videoId: string;
+  videoTitle: string;
+  originalDurationSeconds: number;
+  originalDurationFormatted: string;
+  contributionSeconds: number;
+  contributionMinutes: number;
+  contributionFormatted: string;
+  completionDate: string;
+  completedAt?: string;
+  youtubeUrl?: string | null;
+  notes?: string | null;
+  isPartialContribution: boolean;
+  partialPercentage: number;
+}
+
+export interface EditingCycle {
+  cycleNumber: number;
+  targetMinutes: number;
+  targetSeconds: number;
+  completedSeconds: number;
+  completedMinutes: number;
+  completedFormatted: string;
+  remainingSeconds: number;
+  remainingMinutes: number;
+  progressPercentage: number;
+  status: 'completed' | 'in_progress' | 'upcoming';
+  isEarned: boolean;
+  isPaid: boolean;
+  paymentAmount: number;
+  actualAmountReceived?: number | null;
+  paymentDate?: string | null;
+  paymentRecord?: PaymentRecord;
+  contributions: CycleVideoContribution[];
+  completedAtDate?: string | null;
+}
+
+export interface EditingCyclesSummary {
+  cycles: EditingCycle[];
+  completedCyclesCount: number;
+  totalCyclesCount: number;
+  latestCompletedCycle: EditingCycle | null;
+  currentInProgressCycle: EditingCycle | null;
+  upcomingCycles: EditingCycle[];
+  allCompletedCycles: EditingCycle[];
+  totalContractSeconds: number;
+  totalCompletedSeconds: number;
+  totalCompletedMinutes: number;
+  totalEarnedAmount: number;
+  totalPaidAmount: number;
+  contractProgressPercentage: number;
+  isContractCompleted: boolean;
+  remainingRuntimeMinutes: number;
+  remainingContractValue: number;
+}

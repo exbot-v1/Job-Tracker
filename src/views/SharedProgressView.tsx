@@ -13,6 +13,10 @@ import {
   AlertCircle,
   Video as VideoIcon,
   Loader2,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  Check,
 } from 'lucide-react';
 import {
   formatCurrency,
@@ -22,9 +26,10 @@ import {
   calculateMilestones,
   calculateMonthlyStats,
   calculateAnalytics,
+  calculateEditingCycles,
 } from '../lib/calculations';
 import { CircularProgress } from '../components/CircularProgress';
-import { Contract, Video, PaymentRecord, ShareLink } from '../types';
+import { Contract, Video, PaymentRecord, ShareLink, EditingCycle, CycleVideoContribution } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { DEFAULT_CONTRACT } from '../lib/sampleData';
 
@@ -39,6 +44,14 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
   const [reportVideos, setReportVideos] = useState<Video[]>([]);
   const [reportPayments, setReportPayments] = useState<PaymentRecord[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
+  const [expandedCycles, setExpandedCycles] = useState<Record<number, boolean>>({});
+
+  const toggleCycleExpanded = (cycleNum: number) => {
+    setExpandedCycles((prev) => ({
+      ...prev,
+      [cycleNum]: !prev[cycleNum],
+    }));
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -284,15 +297,84 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
   }
 
   // Calculate live dynamic metrics using pure calculations
-  const progress = calculateContractProgress(reportVideos, reportContract);
-  const milestones = calculateMilestones(reportVideos, reportContract, reportPayments);
+  const cyclesSummary = calculateEditingCycles(reportVideos, reportContract, reportPayments);
   const monthlyStats = calculateMonthlyStats(reportVideos, reportContract);
   const analytics = calculateAnalytics(reportVideos, reportContract);
 
-  // Total paid calculation
-  const totalPaidAmount = reportPayments
-    .filter((p) => p.payment_status === 'paid' || p.paid === true)
-    .reduce((sum, p) => sum + (p.actual_amount_received ?? p.earned_amount), 0);
+  const {
+    latestCompletedCycle,
+    currentInProgressCycle,
+    completedCyclesCount,
+    totalCyclesCount,
+    totalCompletedMinutes,
+    contractProgressPercentage,
+    totalEarnedAmount,
+    totalPaidAmount,
+    isContractCompleted,
+    remainingRuntimeMinutes,
+    remainingContractValue,
+    cycles,
+  } = cyclesSummary;
+
+  // Helper renderer for video contribution items
+  const renderContributionCard = (c: CycleVideoContribution, idx: number) => (
+    <div
+      key={`${c.videoId}-${c.contributionSeconds}-${idx}`}
+      className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#333A4A] transition-colors"
+    >
+      <div className="space-y-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-slate-100 text-sm truncate">
+            {c.videoTitle}
+          </span>
+          {c.isPartialContribution ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              Partial ({formatSecondsDigital(c.contributionSeconds, true)} of {c.originalDurationFormatted} counted)
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222631] text-[#94A3B8] border border-[#2B3240]">
+              Full video counted
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap">
+          <span>Original duration: <strong className="text-slate-300 font-mono">{c.originalDurationFormatted}</strong></span>
+          <span>•</span>
+          <span>Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
+          {c.notes && (
+            <>
+              <span>•</span>
+              <span className="text-[#64748B] italic truncate max-w-xs">{c.notes}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#262B36]/60">
+        <div className="text-left sm:text-right">
+          <span className="text-[10px] uppercase tracking-wider text-[#94A3B8] block">Counted in Cycle</span>
+          <span className="font-mono font-black text-emerald-400 text-sm">
+            {formatSecondsDigital(c.contributionSeconds, true)}
+            <span className="text-[11px] font-normal text-[#94A3B8] ml-1">({formatMinutesDisplay(c.contributionMinutes)})</span>
+          </span>
+        </div>
+
+        {c.youtubeUrl ? (
+          <a
+            href={c.youtubeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/30 transition-colors"
+          >
+            <span>Watch</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <span className="text-[11px] text-[#64748B] italic">No URL</span>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#0F1115] text-[#E2E8F0] antialiased selection:bg-emerald-500 selection:text-slate-950">
@@ -309,17 +391,17 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
                   {reportContract.name}
                 </span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#222631] text-[#94A3B8] border border-[#262B36]">
-                  Progress Report
+                  Employer Progress Report
                 </span>
               </div>
               <p className="text-[11px] text-[#94A3B8]">
-                Official Freelance Production &amp; Milestones Summary
+                Official Freelance Production &amp; 90-Minute Payment Cycles
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 text-xs">
-            {progress.isContractCompleted ? (
+            {isContractCompleted ? (
               <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Contract Completed
               </span>
@@ -328,8 +410,8 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
                 <Clock className="w-3.5 h-3.5 text-sky-400" /> Contract Active
               </span>
             )}
-            <span className="text-[11px] text-[#64748B] hidden md:inline">
-              Last updated: {lastRefreshed || 'Live'}
+            <span className="text-[11px] text-[#64748B] hidden md:inline font-mono">
+              Live sync: {lastRefreshed || 'Active'}
             </span>
           </div>
         </div>
@@ -338,7 +420,7 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
       {/* Main Report Body */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Contract Completion Celebration Banner if finished */}
-        {progress.isContractCompleted && (
+        {isContractCompleted && (
           <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-emerald-950/60 border border-emerald-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4 text-center sm:text-left">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0">
@@ -346,203 +428,458 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-100">
-                  🎉 Contract Scope Fully Completed!
+                  Contract Scope Fully Completed!
                 </h2>
                 <p className="text-xs text-emerald-300/90 mt-0.5">
-                  All {reportContract.total_required_minutes} required minutes of completed video editing delivered ({formatCurrency(reportContract.total_contract_value)} total earned across 6 milestones).
+                  All 540 required minutes of completed video editing delivered across all 6 payment cycles ({formatCurrency(reportContract.total_contract_value)} total earned).
                 </p>
               </div>
             </div>
             <div className="text-center sm:text-right shrink-0">
               <div className="text-xl font-black text-emerald-400 font-mono">
-                {reportContract.total_required_minutes} / {reportContract.total_required_minutes} min
+                540:00 / 540:00 min
               </div>
-              <div className="text-xs text-[#94A3B8] font-medium">6 of 6 Milestones Reached</div>
+              <div className="text-xs text-[#94A3B8] font-medium">6 of 6 Cycles Reached</div>
             </div>
           </div>
         )}
 
-        {/* Section 1 & 2: Main Progress Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Section 1: Overall Contract Progress */}
-          <section
-            id="shared-contract-progress"
-            aria-labelledby="shared-contract-title"
-            className="lg:col-span-7 p-6 sm:p-7 rounded-2xl bg-[#161920] border border-[#262B36] shadow-xl flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Trophy className="w-3.5 h-3.5" /> Overall Scope
-                  </span>
-                  <h2 id="shared-contract-title" className="text-lg font-bold text-slate-100 mt-0.5">
-                    Contract Progress
-                  </h2>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#222631] text-sky-300 border border-[#2B3240] font-mono">
-                  {progress.completedMilestonesCount} / {progress.totalMilestonesCount} Milestones
-                </span>
-              </div>
-
-              {/* Big metric row */}
-              <div className="my-4 space-y-3">
-                <div className="flex items-baseline justify-between">
-                  <div className="text-2xl sm:text-3xl font-black text-slate-100 font-mono tracking-tight">
-                    {formatMinutesDisplay(progress.totalCompletedMinutes)} <span className="text-base text-[#94A3B8] font-normal font-sans">/ {reportContract.total_required_minutes} minutes</span>
-                  </div>
-                  <span className="text-base font-extrabold text-sky-400 font-mono">
-                    {progress.contractProgressPercentage.toFixed(1)}%
-                  </span>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full bg-[#0F1115] rounded-full h-3.5 overflow-hidden p-0.5 border border-[#262B36]">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      progress.isContractCompleted
-                        ? 'bg-emerald-400'
-                        : 'bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400'
-                    }`}
-                    style={{ width: `${progress.contractProgressPercentage}%` }}
-                  />
-                </div>
-
-                {/* Financial Summary */}
-                <div className="flex items-center justify-between text-xs pt-1 text-[#94A3B8]">
-                  <span>Total Earned:</span>
-                  <span className="font-extrabold text-slate-100 text-sm font-mono">
-                    {formatCurrency(progress.earnedAmount)}{' '}
-                    <span className="text-[#94A3B8] font-normal">/ {formatCurrency(reportContract.total_contract_value)}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Sub Metrics Grid */}
-            <div className="pt-4 mt-2 border-t border-[#262B36] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-2.5 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-                <span className="text-[#94A3B8] text-[11px] block">Completed Runtime</span>
-                <span className="font-bold text-slate-100 font-mono text-xs sm:text-sm">
-                  {formatMinutesDisplay(progress.totalCompletedMinutes)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-                <span className="text-[#94A3B8] text-[11px] block">Remaining Runtime</span>
-                <span className="font-bold text-slate-100 font-mono text-xs sm:text-sm">
-                  {formatMinutesDisplay(progress.minutesRemaining)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-                <span className="text-[#94A3B8] text-[11px] block">Earned Amount</span>
-                <span className="font-bold text-emerald-400 font-mono text-xs sm:text-sm">
-                  {formatCurrency(progress.earnedAmount)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-                <span className="text-[#94A3B8] text-[11px] block">Remaining Amount</span>
-                <span className="font-bold text-slate-100 font-mono text-xs sm:text-sm">
-                  {formatCurrency(progress.moneyRemaining)}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Section 2: Current Payment Milestone */}
-          <section
-            id="shared-current-milestone"
-            aria-labelledby="shared-milestone-title"
-            className="lg:col-span-5 p-6 sm:p-7 rounded-2xl bg-[#161920] border border-emerald-500/30 shadow-xl flex flex-col justify-between relative overflow-hidden"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Milestone Pace
-                  </span>
-                  <h2 id="shared-milestone-title" className="text-lg font-bold text-slate-100 mt-0.5">
-                    Current Payment Milestone
-                  </h2>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 font-mono">
-                  #{progress.currentMilestoneNumber} of {progress.totalMilestonesCount}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-5 my-3">
-                <CircularProgress
-                  percentage={progress.currentMilestoneProgressPercentage}
-                  size={120}
-                  strokeWidth={10}
-                  colorClass={progress.isContractCompleted ? 'stroke-emerald-400' : 'stroke-emerald-500'}
-                  bgColorClass="stroke-[#222631]"
-                >
-                  <span className="text-lg font-extrabold text-slate-100 tracking-tight font-mono">
-                    {progress.currentMilestoneProgressPercentage.toFixed(1)}%
-                  </span>
-                  <span className="text-[10px] text-[#94A3B8]">of 90m block</span>
-                </CircularProgress>
-
-                <div className="space-y-1.5 min-w-0">
-                  <div className="text-2xl font-black text-slate-100 font-mono tracking-tight">
-                    {formatMinutesDisplay(progress.minutesIntoCurrentMilestone)} / {reportContract.milestone_minutes}m
-                  </div>
-                  <p className="text-xs text-[#94A3B8]">
-                    {formatSecondsDigital(progress.secondsIntoCurrentMilestone, true)} completed in this milestone
-                  </p>
-                  {progress.isContractCompleted ? (
-                    <div className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> All milestones reached
-                    </div>
-                  ) : (
-                    <div className="text-xs font-semibold text-emerald-400">
-                      {formatMinutesDisplay(progress.minutesUntilNextMilestone)} remaining to next payout
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-[#262B36] space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[#94A3B8]">Payment for this milestone:</span>
-                <span className="font-bold text-emerald-400 text-sm font-mono">
-                  {formatCurrency(reportContract.milestone_payment)}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#64748B] leading-relaxed">
-                90 minutes of completed video runtime is required for each {formatCurrency(reportContract.milestone_payment)} payment milestone. Minutes carry forward automatically.
-              </p>
-            </div>
-          </section>
-        </div>
-
-        {/* Section 3: Completed Videos */}
+        {/* 1. CONTRACT SUMMARY SECTION */}
         <section
-          id="shared-completed-videos"
-          aria-labelledby="shared-videos-title"
+          id="shared-contract-summary"
+          aria-labelledby="shared-contract-title"
           className="p-6 sm:p-7 rounded-2xl bg-[#161920] border border-[#262B36] shadow-xl space-y-5"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262B36]">
             <div>
-              <h2 id="shared-videos-title" className="text-lg font-bold text-slate-100">
-                Completed Videos
+              <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5" /> Overall Scope
+              </span>
+              <h2 id="shared-contract-title" className="text-lg font-bold text-slate-100 mt-0.5">
+                Contract Summary
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold px-3 py-1 rounded-lg bg-[#222631] text-sky-300 border border-[#2B3240] font-mono">
+                {completedCyclesCount} / {totalCyclesCount} Payment Cycles Completed
+              </span>
+            </div>
+          </div>
+
+          {/* Big metric row */}
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <div className="text-2xl sm:text-3xl font-black text-slate-100 font-mono tracking-tight">
+                {formatMinutesDisplay(totalCompletedMinutes)}{' '}
+                <span className="text-base text-[#94A3B8] font-normal font-sans">
+                  / {reportContract.total_required_minutes} minutes ({formatSecondsDigital(cyclesSummary.totalCompletedSeconds, true)})
+                </span>
+              </div>
+              <span className="text-lg font-extrabold text-sky-400 font-mono">
+                {contractProgressPercentage.toFixed(1)}%
+              </span>
+            </div>
+
+            {/* High Contrast Progress Bar */}
+            <div className="w-full bg-[#0F1115] rounded-full h-3.5 overflow-hidden p-0.5 border border-[#262B36]">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  isContractCompleted
+                    ? 'bg-emerald-400'
+                    : 'bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400'
+                }`}
+                style={{ width: `${contractProgressPercentage}%` }}
+              />
+            </div>
+
+            {/* Financial Summary Line */}
+            <div className="flex items-center justify-between text-xs pt-1 text-[#94A3B8]">
+              <span>Total Contract Earnings:</span>
+              <span className="font-extrabold text-slate-100 text-sm font-mono">
+                {formatCurrency(totalEarnedAmount)}{' '}
+                <span className="text-[#94A3B8] font-normal">/ {formatCurrency(reportContract.total_contract_value)}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Sub Metrics Grid */}
+          <div className="pt-4 border-t border-[#262B36] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+              <span className="text-[#94A3B8] text-[11px] block">Completed Runtime</span>
+              <span className="font-bold text-slate-100 font-mono text-sm mt-0.5 block">
+                {formatMinutesDisplay(totalCompletedMinutes)}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+              <span className="text-[#94A3B8] text-[11px] block">Remaining Runtime</span>
+              <span className="font-bold text-slate-100 font-mono text-sm mt-0.5 block">
+                {formatMinutesDisplay(remainingRuntimeMinutes)}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+              <span className="text-[#94A3B8] text-[11px] block">Total Earned</span>
+              <span className="font-bold text-emerald-400 font-mono text-sm mt-0.5 block">
+                {formatCurrency(totalEarnedAmount)}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+              <span className="text-[#94A3B8] text-[11px] block">Remaining Value</span>
+              <span className="font-bold text-slate-100 font-mono text-sm mt-0.5 block">
+                {formatCurrency(remainingContractValue)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* 2. LATEST COMPLETED CYCLE (Primary Employer View) */}
+        <section
+          id="shared-latest-completed-cycle"
+          aria-labelledby="shared-latest-cycle-title"
+          className="p-6 sm:p-7 rounded-2xl bg-[#161920] border-2 border-emerald-500/40 shadow-2xl space-y-6 relative overflow-hidden"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#262B36]">
+            <div>
+              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Primary Settlement View
+              </span>
+              <h2 id="shared-latest-cycle-title" className="text-xl font-bold text-slate-100 mt-0.5">
+                Latest Completed Cycle
+              </h2>
+            </div>
+
+            {latestCompletedCycle && (
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" /> Cycle #{latestCompletedCycle.cycleNumber} Completed
+                </span>
+              </div>
+            )}
+          </div>
+
+          {latestCompletedCycle ? (
+            <div className="space-y-6">
+              {/* Cycle Card Header Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Runtime Target */}
+                <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Completed Cycle Runtime</span>
+                  <div className="text-xl font-black text-slate-100 font-mono">
+                    90:00 <span className="text-xs text-[#94A3B8] font-normal font-sans">/ 90:00 min</span>
+                  </div>
+                  <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> 100% threshold achieved
+                  </span>
+                </div>
+
+                {/* Milestone Payout Amount */}
+                <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Cycle Milestone Payout</span>
+                  <div className="text-xl font-black text-emerald-400 font-mono">
+                    {formatCurrency(latestCompletedCycle.paymentAmount)}
+                  </div>
+                  <span className="text-[11px] text-[#94A3B8]">
+                    Earned upon reaching 90-min runtime
+                  </span>
+                </div>
+
+                {/* Payout Settlement Status */}
+                <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Settlement Status</span>
+                  <div>
+                    {latestCompletedCycle.isPaid ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Paid {latestCompletedCycle.paymentDate ? `(${latestCompletedCycle.paymentDate})` : ''}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Earned (Pending Settlement)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-[#94A3B8] block">
+                    {latestCompletedCycle.completedAtDate ? `Finished on ${latestCompletedCycle.completedAtDate}` : 'Fully delivered'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Contributing Videos for this Cycle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-400" />
+                    <span>Videos Contributing to Cycle #{latestCompletedCycle.cycleNumber}</span>
+                  </h3>
+                  <span className="text-xs text-[#94A3B8] font-mono font-semibold">
+                    {latestCompletedCycle.contributions.length} {latestCompletedCycle.contributions.length === 1 ? 'video' : 'videos'} • 90:00 min total
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {latestCompletedCycle.contributions.map((contribution, idx) =>
+                    renderContributionCard(contribution, idx)
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Empty state when no cycle has completed yet */
+            <div className="py-10 px-4 text-center rounded-xl border border-dashed border-[#262B36] bg-[#13161C]/50 space-y-2">
+              <Film className="w-10 h-10 text-emerald-400/60 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-200">Cycle #1 In Progress</h3>
+              <p className="text-xs text-[#94A3B8] max-w-md mx-auto">
+                Completed video editing runtime is accumulating toward the first 90-minute milestone ({formatCurrency(reportContract.milestone_payment)}).
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 3. CURRENT / IN-PROGRESS CYCLE */}
+        {currentInProgressCycle && !isContractCompleted && (
+          <section
+            id="shared-current-cycle"
+            aria-labelledby="shared-current-cycle-title"
+            className="p-6 sm:p-7 rounded-2xl bg-[#161920] border border-sky-500/30 shadow-xl space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#262B36]">
+              <div>
+                <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-sky-400" /> Active Production
+                </span>
+                <h2 id="shared-current-cycle-title" className="text-lg font-bold text-slate-100 mt-0.5">
+                  Current Cycle #{currentInProgressCycle.cycleNumber}
+                </h2>
+              </div>
+              <span className="text-xs font-semibold px-3 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono">
+                Status: In Progress
+              </span>
+            </div>
+
+            {/* Circular Progress & Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <div className="md:col-span-4 flex items-center justify-center sm:justify-start gap-4">
+                <CircularProgress
+                  percentage={currentInProgressCycle.progressPercentage}
+                  size={110}
+                  strokeWidth={9}
+                  colorClass="stroke-sky-400"
+                  bgColorClass="stroke-[#222631]"
+                >
+                  <span className="text-lg font-extrabold text-slate-100 font-mono">
+                    {currentInProgressCycle.progressPercentage.toFixed(0)}%
+                  </span>
+                  <span className="text-[9px] text-[#94A3B8]">of 90m block</span>
+                </CircularProgress>
+
+                <div className="space-y-1">
+                  <div className="text-xl font-black text-slate-100 font-mono">
+                    {formatSecondsDigital(currentInProgressCycle.completedSeconds, true)}{' '}
+                    <span className="text-xs text-[#94A3B8] font-normal font-sans">/ 90:00</span>
+                  </div>
+                  <p className="text-xs text-sky-300 font-medium">
+                    {formatMinutesDisplay(currentInProgressCycle.remainingMinutes)} remaining
+                  </p>
+                  <span className="text-[11px] text-[#94A3B8] block">
+                    Next payout: <strong className="text-emerald-400 font-mono">{formatCurrency(currentInProgressCycle.paymentAmount)}</strong>
+                  </span>
+                </div>
+              </div>
+
+              <div className="md:col-span-8 p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] text-xs text-[#94A3B8] space-y-2">
+                <div className="flex items-center justify-between font-semibold text-slate-200">
+                  <span>Cycle #{currentInProgressCycle.cycleNumber} Threshold</span>
+                  <span className="font-mono text-emerald-400">{formatCurrency(currentInProgressCycle.paymentAmount)}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Payment is earned once cumulative runtime reaches 90:00 minutes for this cycle. Leftover minutes from previous videos have automatically carried forward into this cycle.
+                </p>
+              </div>
+            </div>
+
+            {/* Contributing Videos so far in this cycle */}
+            <div className="space-y-3 pt-2 border-t border-[#262B36]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                  <Film className="w-4 h-4 text-sky-400" />
+                  <span>Videos Contributing so far in Cycle #{currentInProgressCycle.cycleNumber}</span>
+                </h3>
+                <span className="text-xs text-[#94A3B8] font-mono">
+                  {currentInProgressCycle.contributions.length} {currentInProgressCycle.contributions.length === 1 ? 'entry' : 'entries'} • {formatSecondsDigital(currentInProgressCycle.completedSeconds, true)}
+                </span>
+              </div>
+
+              {currentInProgressCycle.contributions.length === 0 ? (
+                <div className="py-6 text-center text-xs text-[#94A3B8] rounded-xl border border-dashed border-[#262B36] bg-[#13161C]/30">
+                  No videos recorded for Cycle #{currentInProgressCycle.cycleNumber} yet. Next completed video will start filling this cycle.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {currentInProgressCycle.contributions.map((contribution, idx) =>
+                    renderContributionCard(contribution, idx)
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* 4. COMPLETED CYCLE HISTORY (Collapsible & Employer Friendly) */}
+        <section
+          id="shared-cycle-history"
+          aria-labelledby="shared-history-title"
+          className="p-6 sm:p-7 rounded-2xl bg-[#161920] border border-[#262B36] shadow-xl space-y-5"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262B36]">
+            <div>
+              <h2 id="shared-history-title" className="text-lg font-bold text-slate-100">
+                Payment Cycle History
               </h2>
               <p className="text-xs text-[#94A3B8]">
-                All delivered videos contributing directly to cumulative contract runtime
+                Overview of all 6 payment cycles with expandable video breakdown
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-semibold">
+                Earned: {formatCurrency(totalEarnedAmount)}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-[#222631] border border-[#262B36] text-[#94A3B8] font-mono font-semibold">
+                Paid: {formatCurrency(totalPaidAmount)}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {cycles.map((cycle) => {
+              const isExpanded = Boolean(expandedCycles[cycle.cycleNumber]);
+              const isCompleted = cycle.status === 'completed';
+              const isInProgress = cycle.status === 'in_progress';
+              const isUpcoming = cycle.status === 'upcoming';
+
+              return (
+                <div
+                  key={cycle.cycleNumber}
+                  className={`rounded-xl border transition-all ${
+                    isCompleted
+                      ? 'bg-[#161920] border-[#262B36]'
+                      : isInProgress
+                      ? 'bg-[#161920] border-sky-500/30'
+                      : 'bg-[#13161C]/50 border-[#20242E] opacity-75'
+                  }`}
+                >
+                  {/* Cycle Row Header */}
+                  <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                          isCompleted
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : isInProgress
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                            : 'bg-[#222631] text-[#94A3B8] border border-[#2B3240]'
+                        }`}
+                      >
+                        #{cycle.cycleNumber}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-100 text-sm">
+                            Cycle #{cycle.cycleNumber}
+                          </span>
+                          <span className="font-mono text-xs text-slate-300">
+                            ({formatSecondsDigital(cycle.completedSeconds, true)} / 90:00)
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-[#94A3B8] block">
+                          Milestone payout: <strong className="text-emerald-400 font-mono">{formatCurrency(cycle.paymentAmount)}</strong>
+                          {cycle.completedAtDate ? ` • Completed on ${cycle.completedAtDate}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3">
+                      {/* Status Badge */}
+                      {cycle.isPaid ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Paid
+                        </span>
+                      ) : isCompleted ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <Sparkles className="w-3 h-3 text-amber-400" /> Earned (Pending)
+                        </span>
+                      ) : isInProgress ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                          <Clock className="w-3 h-3 text-sky-400" /> In Progress
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#222631] text-[#94A3B8] border border-[#2B3240]">
+                          Upcoming
+                        </span>
+                      )}
+
+                      {/* Expand Toggle */}
+                      {cycle.contributions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleCycleExpanded(cycle.cycleNumber)}
+                          className="px-2.5 py-1 rounded-lg bg-[#222631] hover:bg-[#2B3240] text-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+                        >
+                          <span>{isExpanded ? 'Hide' : `Videos (${cycle.contributions.length})`}</span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded Video List */}
+                  {isExpanded && cycle.contributions.length > 0 && (
+                    <div className="px-4 pb-4 pt-2 border-t border-[#262B36] space-y-2 bg-[#13161C]/50 rounded-b-xl">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] pb-1">
+                        Contributing Videos to Cycle #{cycle.cycleNumber}:
+                      </div>
+                      {cycle.contributions.map((contribution, idx) =>
+                        renderContributionCard(contribution, idx)
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#13161C] border border-[#262B36] flex items-start gap-2 text-xs text-[#94A3B8]">
+            <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed">
+              <strong className="text-slate-200">Cycle Allocation:</strong> Videos are allocated chronologically. If a video crosses a 90-minute boundary, its runtime is split accurately between consecutive cycles with zero double counting.
+            </p>
+          </div>
+        </section>
+
+        {/* 5. ALL COMPLETED VIDEOS LOG */}
+        <section
+          id="shared-all-videos"
+          aria-labelledby="shared-all-videos-title"
+          className="p-6 sm:p-7 rounded-2xl bg-[#161920] border border-[#262B36] shadow-xl space-y-5"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262B36]">
+            <div>
+              <h2 id="shared-all-videos-title" className="text-lg font-bold text-slate-100">
+                All Completed Videos
+              </h2>
+              <p className="text-xs text-[#94A3B8]">
+                Chronological list of all delivered video editing projects
               </p>
             </div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1A1D26] border border-[#262B36] text-xs text-slate-200 font-mono">
               <Film className="w-3.5 h-3.5 text-emerald-400" />
               <span className="font-bold">{reportVideos.length} {reportVideos.length === 1 ? 'video' : 'videos'}</span>
               <span>•</span>
-              <span className="font-bold text-emerald-400">{formatMinutesDisplay(progress.totalCompletedMinutes)} total</span>
+              <span className="font-bold text-emerald-400">{formatMinutesDisplay(totalCompletedMinutes)} total</span>
             </div>
           </div>
 
           {reportVideos.length === 0 ? (
-            <div className="py-12 px-4 text-center rounded-xl border border-dashed border-[#262B36] bg-[#13161C]/50">
-              <VideoIcon className="w-10 h-10 text-[#64748B] mx-auto mb-2" />
+            <div className="py-10 px-4 text-center rounded-xl border border-dashed border-[#262B36] bg-[#13161C]/50">
+              <VideoIcon className="w-8 h-8 text-[#64748B] mx-auto mb-2" />
               <p className="text-xs text-[#94A3B8]">No completed videos recorded yet.</p>
             </div>
           ) : (
@@ -588,12 +925,12 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-semibold text-xs hover:underline"
                           >
-                            <span>Watch on YouTube</span>
+                            <span>Watch</span>
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         ) : (
                           <span className="text-[#64748B] text-[11px]">
-                            YouTube link not available
+                            No link
                           </span>
                         )}
                       </td>
@@ -603,111 +940,9 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
               </table>
             </div>
           )}
-
-          {/* Bottom Video Total Summary Bar */}
-          <div className="pt-4 border-t border-[#262B36] flex flex-col sm:flex-row sm:items-center justify-between text-xs text-[#94A3B8] gap-2">
-            <span>
-              All runtimes are recorded to exact seconds and aggregated cumulatively.
-            </span>
-            <div className="font-mono text-slate-200 font-bold">
-              Total Contract Runtime: <span className="text-emerald-400">{formatMinutesDisplay(progress.totalCompletedMinutes)}</span> ({progress.totalCompletedFormatted})
-            </div>
-          </div>
         </section>
 
-        {/* Section 4: Payment History */}
-        <section
-          id="shared-payment-history"
-          aria-labelledby="shared-payments-title"
-          className="p-6 sm:p-7 rounded-2xl bg-[#161920] border border-[#262B36] shadow-xl space-y-5"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262B36]">
-            <div>
-              <h2 id="shared-payments-title" className="text-lg font-bold text-slate-100">
-                Payment History
-              </h2>
-              <p className="text-xs text-[#94A3B8]">
-                Every 90-minute runtime threshold unlocks an official {formatCurrency(reportContract.milestone_payment)} milestone payout
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-semibold">
-                Earned: {formatCurrency(progress.earnedAmount)}
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-[#222631] border border-[#262B36] text-[#94A3B8] font-mono font-semibold">
-                Paid: {formatCurrency(totalPaidAmount)}
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[#262B36] text-[#94A3B8] font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="pb-3 pr-4">Milestone</th>
-                  <th className="pb-3 pr-4">Runtime Threshold</th>
-                  <th className="pb-3 pr-4">Amount</th>
-                  <th className="pb-3 pr-4">Status</th>
-                  <th className="pb-3 text-right">Payment Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#262B36]/60">
-                {milestones.map((m) => {
-                  const payment = m.paymentRecord;
-                  const isPaid = payment?.payment_status === 'paid' || payment?.paid === true;
-                  const isEarned = m.isEarned;
-
-                  return (
-                    <tr key={m.milestoneNumber} className="hover:bg-[#1A1D26]/50 transition-colors">
-                      <td className="py-3.5 pr-4 font-bold text-slate-200">
-                        Milestone #{m.milestoneNumber}
-                      </td>
-                      <td className="py-3.5 pr-4 font-mono text-slate-300">
-                        {m.thresholdMinutes} minutes
-                      </td>
-                      <td className="py-3.5 pr-4 font-mono font-bold text-emerald-400">
-                        {formatCurrency(m.milestonePayment)}
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        {isPaid ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3" /> Paid
-                          </span>
-                        ) : isEarned ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            <Sparkles className="w-3 h-3" /> Earned (Pending Payout)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#222631] text-[#94A3B8] border border-[#262B36]">
-                            <Clock className="w-3 h-3" /> Upcoming
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 text-right font-mono text-[#94A3B8]">
-                        {isPaid && payment?.payment_date ? (
-                          <span className="text-slate-200">{payment.payment_date}</span>
-                        ) : isEarned ? (
-                          <span className="text-amber-400/80 italic text-[11px]">Awaiting settlement</span>
-                        ) : (
-                          <span className="text-[#64748B]">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-[#13161C] border border-[#262B36] flex items-start gap-2 text-xs text-[#94A3B8]">
-            <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-relaxed">
-              <strong className="text-slate-200">Earned vs Paid:</strong> Completing each 90-minute runtime threshold officially marks that milestone as <span className="text-amber-300 font-semibold">Earned</span>. Once the payment transfer is settled, it is recorded as <span className="text-emerald-300 font-semibold">Paid</span>.
-            </p>
-          </div>
-        </section>
-
-        {/* Section 5: Monthly Production */}
+        {/* 6. MONTHLY PRODUCTION (Reference pace preserved) */}
         <section
           id="shared-monthly-production"
           aria-labelledby="shared-monthly-title"
@@ -716,10 +951,10 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262B36]">
             <div>
               <h2 id="shared-monthly-title" className="text-lg font-bold text-slate-100">
-                Monthly Production
+                Monthly Production Analytics
               </h2>
               <p className="text-xs text-[#94A3B8]">
-                Monthly editing pace breakdown and carry-over volume
+                Calendar production volume for pacing reference ({reportContract.monthly_reference_minutes}m target)
               </p>
             </div>
             <span className="text-[11px] px-2.5 py-1 rounded-lg bg-[#1A1D26] text-[#94A3B8] border border-[#262B36]">
@@ -728,7 +963,7 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
           </div>
 
           {monthlyStats.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[#94A3B8]">
+            <div className="py-6 text-center text-xs text-[#94A3B8]">
               No monthly activity recorded yet.
             </div>
           ) : (
@@ -767,16 +1002,9 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
               </table>
             </div>
           )}
-
-          <div className="p-3.5 rounded-xl bg-[#13161C] border border-[#262B36] flex items-start gap-2 text-xs text-[#94A3B8]">
-            <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-relaxed">
-              Monthly production is shown for reference. Contract payments are based on cumulative completed video runtime, and unused minutes carry forward between months.
-            </p>
-          </div>
         </section>
 
-        {/* Section 6: Summary Statistics */}
+        {/* 7. SUMMARY STATISTICS GRID */}
         <section
           id="shared-summary-stats"
           aria-labelledby="shared-summary-title"
@@ -809,23 +1037,23 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Average Monthly Production</span>
+              <span className="text-[#94A3B8] text-[11px] block">Average Monthly Volume</span>
               <span className="font-bold text-slate-100 font-mono text-base mt-1 block">
                 {formatMinutesDisplay(analytics.averageMonthlyMinutes)}
               </span>
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Milestones Completed</span>
+              <span className="text-[#94A3B8] text-[11px] block">Completed Cycles</span>
               <span className="font-bold text-emerald-400 font-mono text-base mt-1 block">
-                {progress.completedMilestonesCount} / 6
+                {completedCyclesCount} / 6
               </span>
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
               <span className="text-[#94A3B8] text-[11px] block">Total Earned</span>
               <span className="font-bold text-emerald-400 font-mono text-base mt-1 block">
-                {formatCurrency(progress.earnedAmount)}
+                {formatCurrency(totalEarnedAmount)}
               </span>
             </div>
 
@@ -837,9 +1065,9 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Remaining Contract Value</span>
+              <span className="text-[#94A3B8] text-[11px] block">Remaining Value</span>
               <span className="font-bold text-slate-100 font-mono text-base mt-1 block">
-                {formatCurrency(progress.moneyRemaining)}
+                {formatCurrency(remainingContractValue)}
               </span>
             </div>
           </div>
@@ -859,3 +1087,4 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
     </div>
   );
 };
+

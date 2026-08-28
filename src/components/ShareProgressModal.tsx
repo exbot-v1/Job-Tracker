@@ -34,7 +34,7 @@ export const ShareProgressModal: React.FC = () => {
 
   // Construct full share URL
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const shareUrl = shareLink?.token ? `${origin}/progress/${shareLink.token}` : '';
+  const shareUrl = shareLink?.token ? `${origin}/?share=${shareLink.token}` : '';
 
   const handleCopy = async () => {
     if (!shareUrl) return;
