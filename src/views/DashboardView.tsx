@@ -12,15 +12,19 @@ import {
   Calendar,
   Sparkles,
   Info,
-  Share2,
+  FileDown,
 } from 'lucide-react';
 import {
   formatCurrency,
   formatMinutesDisplay,
   formatSecondsDigital,
+  getCurrentEditingPeriodDetails,
 } from '../lib/calculations';
 import { CircularProgress } from '../components/CircularProgress';
 import { ContractCompletionBanner } from '../components/ContractCompletionBanner';
+import { CurrentEditingActivity } from '../components/CurrentEditingActivity';
+import { ContractTimeline } from '../components/ContractTimeline';
+import { ExportPdfModal } from '../components/ExportPdfModal';
 import { EditVideoModal } from '../components/EditVideoModal';
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 import { Video } from '../types';
@@ -29,17 +33,23 @@ export const DashboardView: React.FC = () => {
   const {
     contract,
     videos,
+    payments,
     progress,
+    milestones,
     monthlyStats,
     analytics,
     currentMonthPace,
     setIsAddVideoModalOpen,
-    setIsShareModalOpen,
+    isExportPdfModalOpen,
+    setIsExportPdfModalOpen,
     deleteVideo,
   } = useApp();
 
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null);
+
+  // Current editing period details
+  const periodDetails = getCurrentEditingPeriodDetails(videos, contract, payments);
 
   // Current month stat
   const now = new Date();
@@ -76,16 +86,16 @@ export const DashboardView: React.FC = () => {
           </p>
         </div>
 
-        {/* Action Buttons: Share Progress & Add Completed Video */}
+        {/* Action Buttons: Export Status PDF & Add Completed Video */}
         <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0 flex-wrap">
           <button
-            id="dashboard-share-progress-btn"
-            onClick={() => setIsShareModalOpen(true)}
-            className="py-2.5 px-4 rounded-xl bg-[#1A1D26] hover:bg-[#222631] border border-[#262B36] text-slate-200 hover:text-white font-bold text-xs flex items-center gap-2 transition-all active:scale-95"
-            title="Create and manage read-only progress report for your employer"
+            id="dashboard-export-pdf-btn"
+            onClick={() => setIsExportPdfModalOpen(true)}
+            className="py-2.5 px-4 rounded-xl bg-[#1A1D26] hover:bg-[#222631] border border-[#262B36] text-slate-200 hover:text-white font-bold text-xs flex items-center gap-2 transition-all active:scale-95 shadow-sm"
+            title="Export official video editing status report as PDF (contains no financial data)"
           >
-            <Share2 className="w-4 h-4 text-emerald-400" />
-            <span>Share Progress</span>
+            <FileDown className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+            <span>Export Status PDF</span>
           </button>
 
           <button
@@ -338,6 +348,25 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
+      {/* NEW SECTION 1: Current Editing Activity (Videos contributing to current 90m block) */}
+      <CurrentEditingActivity
+        period={periodDetails}
+        onAddVideoClick={() => setIsAddVideoModalOpen(true)}
+      />
+
+      {/* NEW SECTION 2: Contract Timeline (6 Milestones Progression Roadmap) */}
+      <ContractTimeline
+        milestones={milestones}
+        contract={contract}
+        showFinancials={true}
+      />
+
+      {/* PDF Export Modal */}
+      <ExportPdfModal
+        isOpen={isExportPdfModalOpen}
+        onClose={() => setIsExportPdfModalOpen(false)}
+      />
+
       {/* Edit & Delete Dialog Modals */}
       <EditVideoModal
         video={editingVideo}
@@ -356,3 +385,4 @@ export const DashboardView: React.FC = () => {
     </div>
   );
 };
+

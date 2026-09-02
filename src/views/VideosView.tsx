@@ -22,6 +22,7 @@ import {
   formatSecondsHuman,
   formatMinutesDisplay,
 } from '../lib/calculations';
+import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
 import { EditVideoModal } from '../components/EditVideoModal';
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 
@@ -251,6 +252,7 @@ export const VideosView: React.FC = () => {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
                 <tr>
+                  <th className="py-3.5 px-4 w-20">Preview</th>
                   <th className="py-3.5 px-4">Video Title</th>
                   <th className="py-3.5 px-4 font-mono">Runtime</th>
                   <th className="py-3.5 px-4">Completion Date</th>
@@ -266,6 +268,15 @@ export const VideosView: React.FC = () => {
 
                   return (
                     <tr key={video.id} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="py-2.5 px-4">
+                        <YouTubeThumbnail
+                          youtubeUrl={video.youtube_url}
+                          title={video.title}
+                          className="w-16 h-10 rounded-md"
+                          showPlayBadge={Boolean(video.youtube_url)}
+                        />
+                      </td>
+
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
                           {video.title}
@@ -345,21 +356,31 @@ export const VideosView: React.FC = () => {
                 key={video.id}
                 className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold text-slate-100">{video.title}</h3>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setEditingVideo(video)}
-                      className="p-1.5 text-slate-400 hover:text-slate-200 bg-slate-800 rounded-lg"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeletingVideo(video)}
-                      className="p-1.5 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-lg"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                <div className="flex items-start gap-3">
+                  <YouTubeThumbnail
+                    youtubeUrl={video.youtube_url}
+                    title={video.title}
+                    className="w-20 h-13 rounded-lg shrink-0"
+                    showPlayBadge={Boolean(video.youtube_url)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-100 truncate">{video.title}</h3>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setEditingVideo(video)}
+                          className="p-1.5 text-slate-400 hover:text-slate-200 bg-slate-800 rounded-lg"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingVideo(video)}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

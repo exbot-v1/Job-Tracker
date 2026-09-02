@@ -74,6 +74,10 @@ interface AppContextType {
   revokeShareLink: () => Promise<boolean>;
   regenerateShareLink: () => Promise<ShareLink | null>;
 
+  // PDF Export
+  isExportPdfModalOpen: boolean;
+  setIsExportPdfModalOpen: (open: boolean) => void;
+
   // UI helpers
   toasts: ToastMessage[];
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
@@ -123,6 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Modals
   const [isAddVideoModalOpen, setIsAddVideoModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
 
   // Auth state - strictly Supabase auth (no hardcoded fake user!)
   const [user, setUser] = useState<Profile | null>(null);
@@ -1096,6 +1101,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createShareLink,
       revokeShareLink,
       regenerateShareLink,
+      isExportPdfModalOpen,
+      setIsExportPdfModalOpen,
 
       toasts,
       addToast,
@@ -1135,6 +1142,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createShareLink,
       revokeShareLink,
       regenerateShareLink,
+      isExportPdfModalOpen,
+      setIsExportPdfModalOpen,
       toasts,
       addToast,
       removeToast,

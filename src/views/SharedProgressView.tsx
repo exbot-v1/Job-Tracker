@@ -29,6 +29,7 @@ import {
   calculateEditingCycles,
 } from '../lib/calculations';
 import { CircularProgress } from '../components/CircularProgress';
+import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
 import { Contract, Video, PaymentRecord, ShareLink, EditingCycle, CycleVideoContribution } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { DEFAULT_CONTRACT } from '../lib/sampleData';
@@ -322,31 +323,39 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
       key={`${c.videoId}-${c.contributionSeconds}-${idx}`}
       className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#333A4A] transition-colors"
     >
-      <div className="space-y-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-slate-100 text-sm truncate">
-            {c.videoTitle}
-          </span>
-          {c.isPartialContribution ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-              Partial ({formatSecondsDigital(c.contributionSeconds, true)} of {c.originalDurationFormatted} counted)
+      <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+        <YouTubeThumbnail
+          youtubeUrl={c.youtubeUrl}
+          title={c.videoTitle}
+          className="w-16 h-11 rounded-lg shrink-0"
+          showPlayBadge={Boolean(c.youtubeUrl)}
+        />
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-100 text-sm truncate">
+              {c.videoTitle}
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222631] text-[#94A3B8] border border-[#2B3240]">
-              Full video counted
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap">
-          <span>Original duration: <strong className="text-slate-300 font-mono">{c.originalDurationFormatted}</strong></span>
-          <span>•</span>
-          <span>Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
-          {c.notes && (
-            <>
-              <span>•</span>
-              <span className="text-[#64748B] italic truncate max-w-xs">{c.notes}</span>
-            </>
-          )}
+            {c.isPartialContribution ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                Partial ({formatSecondsDigital(c.contributionSeconds, true)} of {c.originalDurationFormatted} counted)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222631] text-[#94A3B8] border border-[#2B3240]">
+                Full video counted
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap">
+            <span>Original duration: <strong className="text-slate-300 font-mono">{c.originalDurationFormatted}</strong></span>
+            <span>•</span>
+            <span>Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
+            {c.notes && (
+              <>
+                <span>•</span>
+                <span className="text-[#64748B] italic truncate max-w-xs">{c.notes}</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -887,7 +896,8 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-[#262B36] text-[#94A3B8] font-semibold text-[11px] uppercase tracking-wider">
-                    <th className="pb-3 pr-4">#</th>
+                    <th className="pb-3 pr-4 w-12">#</th>
+                    <th className="pb-3 pr-4 w-20">Preview</th>
                     <th className="pb-3 pr-4">Video Title</th>
                     <th className="pb-3 pr-4">Duration</th>
                     <th className="pb-3 pr-4">Completion Date</th>
@@ -897,10 +907,18 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
                 <tbody className="divide-y divide-[#262B36]/60">
                   {reportVideos.map((video, idx) => (
                     <tr key={video.id} className="hover:bg-[#1A1D26]/50 transition-colors">
-                      <td className="py-3.5 pr-4 text-[#64748B] font-mono text-[11px]">
+                      <td className="py-3 pr-4 text-[#64748B] font-mono text-[11px]">
                         {reportVideos.length - idx}
                       </td>
-                      <td className="py-3.5 pr-4 font-semibold text-slate-200 max-w-xs sm:max-w-md">
+                      <td className="py-2.5 pr-4">
+                        <YouTubeThumbnail
+                          youtubeUrl={video.youtube_url}
+                          title={video.title}
+                          className="w-14 h-9 rounded-md"
+                          showPlayBadge={Boolean(video.youtube_url)}
+                        />
+                      </td>
+                      <td className="py-3 pr-4 font-semibold text-slate-200 max-w-xs sm:max-w-md">
                         <div className="truncate">{video.title}</div>
                         {video.notes && (
                           <div className="text-[11px] text-[#64748B] truncate font-normal mt-0.5">
@@ -908,16 +926,16 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
                           </div>
                         )}
                       </td>
-                      <td className="py-3.5 pr-4 font-mono font-bold text-slate-200 whitespace-nowrap">
+                      <td className="py-3 pr-4 font-mono font-bold text-slate-200 whitespace-nowrap">
                         {formatSecondsDigital(video.duration_seconds, true)}
                         <span className="text-[11px] text-[#94A3B8] font-normal ml-1.5">
                           ({formatMinutesDisplay(video.duration_seconds / 60)})
                         </span>
                       </td>
-                      <td className="py-3.5 pr-4 text-[#94A3B8] font-mono whitespace-nowrap">
+                      <td className="py-3 pr-4 text-[#94A3B8] font-mono whitespace-nowrap">
                         {video.completion_date}
                       </td>
-                      <td className="py-3.5 text-right whitespace-nowrap">
+                      <td className="py-3 text-right whitespace-nowrap">
                         {video.youtube_url ? (
                           <a
                             href={video.youtube_url}

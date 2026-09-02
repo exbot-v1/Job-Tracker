@@ -637,3 +637,108 @@ export function calculateEditingCycles(
     remainingContractValue,
   };
 }
+
+export interface CurrentEditingPeriodDetails {
+  cycleNumber: number;
+  status: 'in_progress' | 'completed' | 'upcoming';
+  targetMinutes: number;
+  targetSeconds: number;
+  completedSeconds: number;
+  completedMinutes: number;
+  completedFormatted: string;
+  remainingSeconds: number;
+  remainingMinutes: number;
+  remainingFormatted: string;
+  progressPercentage: number;
+  startDate: string | null;
+  startDateFormatted: string;
+  totalVideosCount: number;
+  totalOriginalRuntimeSeconds: number;
+  totalExtraCarryoverSeconds: number;
+  contributions: Array<CycleVideoContribution & {
+    extraSecondsToNextPeriod: number;
+    extraFormattedToNextPeriod: string;
+  }>;
+}
+
+/**
+ * Get rich details of the current 90-minute editing period,
+ * including exact start date (from first video contribution) and boundary split info.
+ */
+export function getCurrentEditingPeriodDetails(
+  videos: Video[],
+  contract: Contract,
+  payments: PaymentRecord[] = []
+): CurrentEditingPeriodDetails {
+  const summary = calculateEditingCycles(videos, contract, payments);
+  const milestoneMinutes = contract.milestone_minutes || 90;
+  const milestoneSeconds = milestoneMinutes * 60;
+
+  const targetCycle = summary.currentInProgressCycle || summary.latestCompletedCycle || summary.cycles[0];
+  const cycleNumber = targetCycle ? targetCycle.cycleNumber : 1;
+  const rawContributions = targetCycle ? targetCycle.contributions : [];
+
+  // Determine period start date: date of the FIRST video contribution in this period
+  let startDate: string | null = null;
+  if (rawContributions.length > 0) {
+    startDate = rawContributions[0].completionDate || rawContributions[0].completedAt || null;
+  }
+
+  // Format date nicely
+  let startDateFormatted = 'Not started yet';
+  if (startDate) {
+    try {
+      const d = new Date(startDate);
+      if (!isNaN(d.getTime())) {
+        startDateFormatted = d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      } else {
+        startDateFormatted = startDate;
+      }
+    } catch {
+      startDateFormatted = startDate;
+    }
+  }
+
+  let totalOriginalRuntimeSeconds = 0;
+  let totalExtraCarryoverSeconds = 0;
+
+  const enrichedContributions = rawContributions.map((contrib) => {
+    totalOriginalRuntimeSeconds += contrib.originalDurationSeconds;
+    const extraSeconds = Math.max(0, contrib.originalDurationSeconds - contrib.contributionSeconds);
+    totalExtraCarryoverSeconds += extraSeconds;
+
+    return {
+      ...contrib,
+      extraSecondsToNextPeriod: extraSeconds,
+      extraFormattedToNextPeriod: formatSecondsDigital(extraSeconds, true),
+    };
+  });
+
+  const completedSeconds = targetCycle ? targetCycle.completedSeconds : 0;
+  const remainingSeconds = targetCycle ? targetCycle.remainingSeconds : milestoneSeconds;
+
+  return {
+    cycleNumber,
+    status: targetCycle ? targetCycle.status : 'upcoming',
+    targetMinutes: milestoneMinutes,
+    targetSeconds: milestoneSeconds,
+    completedSeconds,
+    completedMinutes: completedSeconds / 60,
+    completedFormatted: formatSecondsDigital(completedSeconds, true),
+    remainingSeconds,
+    remainingMinutes: remainingSeconds / 60,
+    remainingFormatted: formatSecondsDigital(remainingSeconds, true),
+    progressPercentage: targetCycle ? targetCycle.progressPercentage : 0,
+    startDate,
+    startDateFormatted,
+    totalVideosCount: enrichedContributions.length,
+    totalOriginalRuntimeSeconds,
+    totalExtraCarryoverSeconds,
+    contributions: enrichedContributions,
+  };
+}
+
