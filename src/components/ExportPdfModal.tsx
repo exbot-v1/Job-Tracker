@@ -107,7 +107,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({ isOpen, onClose 
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[#262B36]">
               <span className="text-[#94A3B8]">Target Block:</span>
               <span className="font-bold text-slate-100 font-mono">
-                90-Minute Period #{period.cycleNumber} ({period.progressPercentage.toFixed(1)}%)
+                90-Minute Editing Period ({period.progressPercentage.toFixed(1)}%)
               </span>
             </div>
 
@@ -119,13 +119,13 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({ isOpen, onClose 
               <div>
                 <span className="text-[#94A3B8] block text-[11px]">Completed in Block:</span>
                 <span className="font-bold text-emerald-400 font-mono">
-                  {period.completedFormatted} ({formatMinutesDisplay(period.completedMinutes)})
+                  {period.completedFormatted}
                 </span>
               </div>
               <div>
                 <span className="text-[#94A3B8] block text-[11px]">Remaining in Block:</span>
                 <span className="font-semibold text-slate-200 font-mono">
-                  {period.remainingFormatted} ({formatMinutesDisplay(period.remainingMinutes)})
+                  {period.remainingFormatted}
                 </span>
               </div>
               <div>

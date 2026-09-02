@@ -5,7 +5,7 @@ import {
   Film,
   Trophy,
   Banknote,
-  BarChart3,
+  Globe,
   Settings,
   Plus,
   Moon,
@@ -26,7 +26,7 @@ export const MobileNav: React.FC = () => {
     { id: 'videos', label: 'Videos', icon: Film },
     { id: 'milestones', label: 'Milestones', icon: Trophy },
     { id: 'payments', label: 'Payments', icon: Banknote },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'public-view', label: 'Public', icon: Globe },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

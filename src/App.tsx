@@ -4,32 +4,42 @@ import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
 import { ToastContainer } from './components/ToastContainer';
 import { AddVideoModal } from './components/AddVideoModal';
-import { ShareProgressModal } from './components/ShareProgressModal';
 import { DashboardView } from './views/DashboardView';
 import { VideosView } from './views/VideosView';
 import { MilestonesView } from './views/MilestonesView';
 import { PaymentsView } from './views/PaymentsView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { SettingsView } from './views/SettingsView';
+import { PublicViewWrapper } from './views/PublicViewWrapper';
 import { AuthView } from './views/AuthView';
 import { SharedProgressView } from './views/SharedProgressView';
 
 function getShareTokenFromUrl(): string | null {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check pathname: /progress/:token
+  // 1. Check pathname: /public/:token or /progress/:token
   const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const publicIdx = pathParts.indexOf('public');
+  if (publicIdx !== -1 && pathParts[publicIdx + 1]) {
+    return pathParts[publicIdx + 1];
+  }
   const progressIdx = pathParts.indexOf('progress');
   if (progressIdx !== -1 && pathParts[progressIdx + 1]) {
     return pathParts[progressIdx + 1];
   }
 
-  // 2. Check query params: ?share=:token
+  // 2. Check query params: ?public=:token or ?share=:token
   const params = new URLSearchParams(window.location.search);
+  const publicParam = params.get('public');
+  if (publicParam) return publicParam;
   const shareParam = params.get('share');
   if (shareParam) return shareParam;
 
-  // 3. Check hash: #/progress/:token
+  // 3. Check hash: #/public/:token or #/progress/:token
+  if (window.location.hash.startsWith('#/public/')) {
+    const hashPart = window.location.hash.replace('#/public/', '').split('?')[0];
+    if (hashPart) return hashPart;
+  }
   if (window.location.hash.startsWith('#/progress/')) {
     const hashPart = window.location.hash.replace('#/progress/', '').split('?')[0];
     if (hashPart) return hashPart;
@@ -63,14 +73,12 @@ const MainLayout: React.FC = () => {
         {activeTab === 'milestones' && <MilestonesView />}
         {activeTab === 'payments' && <PaymentsView />}
         {activeTab === 'analytics' && <AnalyticsView />}
+        {activeTab === 'public-view' && <PublicViewWrapper />}
         {activeTab === 'settings' && <SettingsView />}
       </main>
 
       {/* Global Add Video Modal */}
       <AddVideoModal />
-
-      {/* Global Share Progress Modal */}
-      <ShareProgressModal />
 
       {/* Global Toast Notifications */}
       <ToastContainer />

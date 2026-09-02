@@ -16,6 +16,12 @@ import {
   Copy,
   ExternalLink,
   Info,
+  Globe,
+  Radio,
+  Power,
+  RotateCw,
+  Lock,
+  Check,
 } from 'lucide-react';
 import { formatCurrency, formatMinutesDisplay } from '../lib/calculations';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -32,6 +38,10 @@ export const SettingsView: React.FC = () => {
     clearAllVideos,
     exportDataJson,
     importDataJson,
+    shareLink,
+    createShareLink,
+    revokeShareLink,
+    regenerateShareLink,
     addToast,
   } = useApp();
 
@@ -47,6 +57,63 @@ export const SettingsView: React.FC = () => {
   const [importJsonText, setImportJsonText] = useState('');
   const [showImportBox, setShowImportBox] = useState(false);
   const [isSavingContract, setIsSavingContract] = useState(false);
+  const [isProcessingShare, setIsProcessingShare] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const isPublicActive = Boolean(shareLink && shareLink.is_active);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const publicUrl = shareLink?.token ? `${origin}/?public=${shareLink.token}` : '';
+
+  const handleCopyPublicLink = async () => {
+    if (!publicUrl) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicUrl);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = publicUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setLinkCopied(true);
+      addToast({
+        type: 'success',
+        title: 'Public Link Copied',
+        message: 'Permanent read-only employer link copied to clipboard.',
+      });
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Copy Failed',
+        message: 'Could not copy link to clipboard.',
+      });
+    }
+  };
+
+  const handleTogglePublicLink = async () => {
+    setIsProcessingShare(true);
+    try {
+      if (isPublicActive) {
+        await revokeShareLink();
+      } else {
+        await createShareLink();
+      }
+    } finally {
+      setIsProcessingShare(false);
+    }
+  };
+
+  const handleRegeneratePublicLink = async () => {
+    setIsProcessingShare(true);
+    try {
+      await regenerateShareLink();
+    } finally {
+      setIsProcessingShare(false);
+    }
+  };
 
   const handleSaveContract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,6 +371,99 @@ CREATE POLICY "Users can only access own payments" ON public.payments FOR ALL US
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* Public View (Employer Link) Card */}
+          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-100">Public View (Employer Link)</h3>
+                    {isPublicActive ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <Radio className="w-2.5 h-2.5 text-emerald-400 animate-pulse" /> Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                        <Lock className="w-2.5 h-2.5" /> Disabled
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Read-only link for clients to track runtime progress live with zero login.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTogglePublicLink}
+                disabled={isProcessingShare}
+                className={`py-2 px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 self-start sm:self-auto ${
+                  isPublicActive
+                    ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                }`}
+              >
+                <Power className="w-3.5 h-3.5" />
+                <span>{isPublicActive ? 'Disable Public View' : 'Enable Public View'}</span>
+              </button>
+            </div>
+
+            {isPublicActive ? (
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="flex-1 flex items-center gap-2 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 font-mono overflow-hidden">
+                    <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate select-all">{publicUrl}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopyPublicLink}
+                      className={`py-2.5 px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors ${
+                        linkCopied
+                          ? 'bg-emerald-500 text-slate-950 font-bold'
+                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                      }`}
+                    >
+                      {linkCopied ? <Check className="w-4 h-4 stroke-[3]" /> : <Copy className="w-4 h-4" />}
+                      <span>{linkCopied ? 'Copied' : 'Copy Link'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => publicUrl && window.open(publicUrl, '_blank', 'noopener,noreferrer')}
+                      className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Open</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRegeneratePublicLink}
+                      disabled={isProcessingShare}
+                      className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                      title="Regenerate token"
+                    >
+                      <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Regenerate</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                Click <strong>Enable Public View</strong> to generate a unique token and shareable URL.
+              </p>
+            )}
           </div>
 
           {/* Supabase Security & Database Schema Card */}

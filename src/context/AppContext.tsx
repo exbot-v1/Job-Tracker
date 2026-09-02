@@ -23,7 +23,7 @@ import {
 import { DEFAULT_CONTRACT } from '../lib/sampleData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-export type NavTab = 'dashboard' | 'videos' | 'milestones' | 'payments' | 'analytics' | 'settings';
+export type NavTab = 'dashboard' | 'videos' | 'milestones' | 'payments' | 'analytics' | 'public-view' | 'settings';
 
 interface AppContextType {
   // Navigation & Theme

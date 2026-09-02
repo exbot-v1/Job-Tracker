@@ -36,25 +36,36 @@ import { DEFAULT_CONTRACT } from '../lib/sampleData';
 
 interface SharedProgressViewProps {
   token: string;
+  overrideContract?: Contract;
+  overrideVideos?: Video[];
+  overridePayments?: PaymentRecord[];
 }
 
-export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token }) => {
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
-  const [reportContract, setReportContract] = useState<Contract>(DEFAULT_CONTRACT);
-  const [reportVideos, setReportVideos] = useState<Video[]>([]);
-  const [reportPayments, setReportPayments] = useState<PaymentRecord[]>([]);
+export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
+  token,
+  overrideContract,
+  overrideVideos,
+  overridePayments,
+}) => {
+  const [isLoading, setIsLoading] = useState<boolean>(!overrideContract);
+  const [isValidToken, setIsValidToken] = useState<boolean | null>(overrideContract ? true : null);
+  const [reportContract, setReportContract] = useState<Contract>(overrideContract || DEFAULT_CONTRACT);
+  const [reportVideos, setReportVideos] = useState<Video[]>(overrideVideos || []);
+  const [reportPayments, setReportPayments] = useState<PaymentRecord[]>(overridePayments || []);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [expandedCycles, setExpandedCycles] = useState<Record<number, boolean>>({});
 
-  const toggleCycleExpanded = (cycleNum: number) => {
-    setExpandedCycles((prev) => ({
-      ...prev,
-      [cycleNum]: !prev[cycleNum],
-    }));
-  };
-
   useEffect(() => {
+    if (overrideContract) {
+      setReportContract(overrideContract);
+      setReportVideos(overrideVideos || []);
+      setReportPayments(overridePayments || []);
+      setIsValidToken(true);
+      setIsLoading(false);
+      setLastRefreshed(new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }));
+      return;
+    }
+
     let isMounted = true;
 
     async function fetchReport() {
@@ -316,6 +327,13 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({ token })
     remainingContractValue,
     cycles,
   } = cyclesSummary;
+
+  const toggleCycleExpanded = (cycleNumber: number) => {
+    setExpandedCycles((prev) => ({
+      ...prev,
+      [cycleNumber]: !prev[cycleNumber],
+    }));
+  };
 
   // Helper renderer for video contribution items
   const renderContributionCard = (c: CycleVideoContribution, idx: number) => (

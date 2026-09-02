@@ -63,40 +63,26 @@ export function parseDurationToSeconds(input: string): { seconds: number; error?
 }
 
 /**
- * Format total seconds into standard digital display (HH:MM:SS or MM:SS)
+ * Format total seconds into standard digital display MM:SS (e.g. "27:04", "62:56", "90:00", "540:00")
+ * Strictly adheres to rule: All user-facing runtime values must use MM:SS format.
  */
-export function formatSecondsDigital(totalSeconds: number, forceHours = false): string {
+export function formatSecondsDigital(totalSeconds: number, _forceHours = false): string {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
 
   const pad = (n: number) => n.toString().padStart(2, '0');
-
-  if (hours > 0 || forceHours) {
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-  }
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
 /**
- * Format total seconds into human-readable duration (e.g. "18m 42s" or "1h 15m 05s" or "75m 05s")
+ * Format total seconds into human-readable duration (e.g. "18m 42s" or "90m 00s")
  */
-export function formatSecondsHuman(totalSeconds: number, preferMinutes = false): string {
+export function formatSecondsHuman(totalSeconds: number, _preferMinutes = true): string {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const totalMins = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
-
-  if (preferMinutes) {
-    const totalMins = Math.floor(safeSeconds / 60);
-    return `${totalMins}m ${seconds}s`;
-  }
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  }
-  return `${minutes}m ${seconds}s`;
+  return `${totalMins}m ${seconds}s`;
 }
 
 /**

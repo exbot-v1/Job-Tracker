@@ -6,6 +6,7 @@ import {
   Trophy,
   Banknote,
   BarChart3,
+  Globe,
   Settings,
   Plus,
   Moon,
@@ -44,6 +45,7 @@ export const Sidebar: React.FC = () => {
     { id: 'milestones', label: 'Milestones', icon: Trophy, badge: `${progress.completedMilestonesCount}/6` },
     { id: 'payments', label: 'Payments', icon: Banknote, badge: formatCurrency(progress.earnedAmount) },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'public-view', label: 'Public View', icon: Globe },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

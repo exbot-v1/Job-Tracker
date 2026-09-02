@@ -3,8 +3,6 @@ import { Contract, Video, PaymentRecord } from '../types';
 import {
   getCurrentEditingPeriodDetails,
   formatSecondsDigital,
-  formatMinutesDisplay,
-  calculateContractProgress,
 } from './calculations';
 import { getYouTubeThumbnailUrl, loadImageAsBase64 } from './youtube';
 
@@ -17,9 +15,98 @@ export interface PDFExportOptions {
 }
 
 /**
+ * Render any Unicode text (including Bangla, English, mixed characters, emojis, numbers)
+ * into a high-DPI crisp PNG image on an HTML5 canvas, ensuring 100% perfect Bengali ligatures,
+ * vowel sign reordering, and font fallback rendering in jsPDF.
+ */
+function renderUnicodeTextToCanvasImage(
+  text: string,
+  options: {
+    fontSizePt?: number;
+    fontWeight?: string;
+    color?: string;
+    maxWidthMm?: number;
+    scale?: number;
+  } = {}
+): { dataUrl: string; widthMm: number; heightMm: number } {
+  const {
+    fontSizePt = 9,
+    fontWeight = 'bold',
+    color = '#0F172A',
+    maxWidthMm = 72,
+    scale = 4, // 4x supersampling for razor-sharp text
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { dataUrl: '', widthMm: 0, heightMm: 0 };
+  }
+
+  // 1 pt = 1.333 px at standard 96 DPI
+  const pixelFontSize = fontSizePt * 1.333 * scale;
+  const fontFamilies = "'Noto Sans Bengali', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
+  ctx.font = `${fontWeight} ${pixelFontSize}px ${fontFamilies}`;
+
+  // Truncate if exceeds maxWidth
+  const maxWidthPx = (maxWidthMm / 0.264583) * scale;
+  let renderText = text || '';
+  if (ctx.measureText(renderText).width > maxWidthPx) {
+    while (renderText.length > 3 && ctx.measureText(renderText + '...').width > maxWidthPx) {
+      renderText = renderText.slice(0, -1);
+    }
+    renderText += '...';
+  }
+
+  const metrics = ctx.measureText(renderText);
+  const textWidthPx = Math.max(10, Math.ceil(metrics.width + 12 * scale));
+  const textHeightPx = Math.max(10, Math.ceil(pixelFontSize * 1.4 + 4 * scale));
+
+  canvas.width = textWidthPx;
+  canvas.height = textHeightPx;
+
+  // Re-apply context font state after dimension change
+  ctx.font = `${fontWeight} ${pixelFontSize}px ${fontFamilies}`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.fillText(renderText, 2 * scale, canvas.height / 2);
+
+  const mmPerPx = 0.264583 / scale;
+  const widthMm = canvas.width * mmPerPx;
+  const heightMm = canvas.height * mmPerPx;
+
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    widthMm,
+    heightMm,
+  };
+}
+
+/**
+ * Wait for web fonts (especially Noto Sans Bengali) to be loaded before rendering
+ */
+async function ensureFontsLoaded(): Promise<void> {
+  if (typeof document !== 'undefined' && 'fonts' in document) {
+    try {
+      await document.fonts.ready;
+      await document.fonts.load("bold 16px 'Noto Sans Bengali'");
+    } catch {
+      // Font load fallback
+    }
+  }
+}
+
+/**
  * Generate and download an official Video Editing Status PDF report.
- * Strictly adheres to rule: Contains ONLY editing time and runtime progression.
- * ABSOLUTELY NO financial or payment information.
+ * Strictly adheres to rules:
+ * 1. Contains ONLY editing time and runtime progression (MM:SS).
+ * 2. ABSOLUTELY ZERO financial, salary, or payment information.
+ * 3. NO overall contract progress or 540-minute scope sections.
+ * 4. NO current cycle/milestone numbers (only "90-MINUTE EDITING PERIOD STATUS").
+ * 5. Flawless Bengali / Unicode font support via canvas text renderer.
  */
 export async function generateEditingStatusPDF(options: PDFExportOptions): Promise<void> {
   const {
@@ -29,6 +116,8 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
     clientOrEmployerName = 'Client / Employer',
     reportTitle = 'VIDEO EDITING PROGRESS REPORT',
   } = options;
+
+  await ensureFontsLoaded();
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -41,18 +130,17 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
-  // Colors
-  const primaryColor: [number, number, number] = [16, 185, 129]; // Emerald #10B981
-  const darkBg: [number, number, number] = [15, 23, 42]; // Slate-900 #0F172A
-  const cardBg: [number, number, number] = [248, 250, 252]; // Slate-50 #F8FAFC
-  const borderCol: [number, number, number] = [226, 232, 240]; // Slate-200 #E2E8F0
-  const textDark: [number, number, number] = [15, 23, 42]; // Slate-900
-  const textMuted: [number, number, number] = [100, 116, 139]; // Slate-500
-  const accentSky: [number, number, number] = [14, 165, 233]; // Sky-500
+  // Design Colors
+  const primaryEmerald: [number, number, number] = [16, 185, 129]; // #10B981
+  const darkNavyBg: [number, number, number] = [15, 23, 42]; // #0F172A
+  const cardLightBg: [number, number, number] = [248, 250, 252]; // #F8FAFC
+  const borderLight: [number, number, number] = [226, 232, 240]; // #E2E8F0
+  const textDark: [number, number, number] = [15, 23, 42]; // #0F172A
+  const textMuted: [number, number, number] = [100, 116, 139]; // #64748B
+  const textSubtle: [number, number, number] = [148, 163, 184]; // #94A3B8
 
   // Calculate current period & progress
   const period = getCurrentEditingPeriodDetails(videos, contract, payments);
-  const overall = calculateContractProgress(videos, contract);
 
   // Pre-load video thumbnails if any
   const thumbnailMap: Record<string, string | null> = {};
@@ -72,165 +160,176 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
 
   let y = margin;
 
-  // --- HEADER SECTION ---
-  // Top Banner background
-  doc.setFillColor(darkBg[0], darkBg[1], darkBg[2]);
-  doc.roundedRect(margin, y, contentWidth, 28, 3, 3, 'F');
+  // ==========================================
+  // 1. TOP HEADER BANNER
+  // ==========================================
+  const headerHeight = 28;
+  doc.setFillColor(darkNavyBg[0], darkNavyBg[1], darkNavyBg[2]);
+  doc.roundedRect(margin, y, contentWidth, headerHeight, 3, 3, 'F');
 
-  // Emerald accent strip on left
-  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.rect(margin, y, 4, 28, 'F');
+  // Emerald left accent strip
+  doc.setFillColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.rect(margin, y, 4, headerHeight, 'F');
 
   // Report Title
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(13.5);
   doc.setTextColor(255, 255, 255);
-  doc.text(reportTitle, margin + 8, y + 10);
+  doc.text(reportTitle, margin + 8, y + 9.5);
 
-  // Subtitle / Contract
+  // Contract Name & Recipient
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(203, 213, 225); // Slate-300
-  doc.text(`Project / Contract: ${contract.name}`, margin + 8, y + 17);
-  doc.text(`Recipient: ${clientOrEmployerName}`, margin + 8, y + 23);
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text(`Project / Contract: ${contract.name}`, margin + 8, y + 16.5);
+  doc.text(`Recipient: ${clientOrEmployerName}`, margin + 8, y + 22.5);
 
-  // Right side of header: Date generated & Cycle #
-  const nowStr = new Date().toLocaleDateString('en-US', {
+  // Right side: Report Generated Date & Time + Period Start (NO cycle/milestone number)
+  const now = new Date();
+  const generatedDateStr = now.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+  const generatedTimeStr = now.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
   doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Generated: ${nowStr}`, pageWidth - margin - 6, y + 10, { align: 'right' });
+  doc.setTextColor(textSubtle[0], textSubtle[1], textSubtle[2]);
+  doc.text(`Generated: ${generatedDateStr} — ${generatedTimeStr}`, pageWidth - margin - 6, y + 10, { align: 'right' });
+
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`Editing Period Block #${period.cycleNumber}`, pageWidth - margin - 6, y + 17, { align: 'right' });
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.text(`90-MINUTE EDITING PERIOD`, pageWidth - margin - 6, y + 16.5, { align: 'right' });
+
   doc.setFont('helvetica', 'normal');
-  doc.text(`Period Start: ${period.startDateFormatted}`, pageWidth - margin - 6, y + 23, { align: 'right' });
+  doc.setTextColor(203, 213, 225);
+  doc.text(`Editing Period Started: ${period.startDateFormatted}`, pageWidth - margin - 6, y + 22.5, { align: 'right' });
 
-  y += 33;
+  y += headerHeight + 6;
 
-  // --- CURRENT 90-MINUTE PERIOD METRICS CARD ---
-  doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
-  doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
+  // ==========================================
+  // 2. 90-MINUTE EDITING PERIOD STATUS CARD
+  // ==========================================
+  const cardHeight = 36;
+  doc.setFillColor(cardLightBg[0], cardLightBg[1], cardLightBg[2]);
+  doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2]);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin, y, contentWidth, 34, 3, 3, 'FD');
+  doc.roundedRect(margin, y, contentWidth, cardHeight, 3, 3, 'FD');
 
-  // Section Header inside card
+  // Title inside card
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text('CURRENT 90-MINUTE EDITING PERIOD STATUS', margin + 6, y + 8);
+  doc.text('90-MINUTE EDITING PERIOD STATUS', margin + 6, y + 7.5);
 
-  // Progress percentage badge
+  // Percentage badge
   doc.setFontSize(9);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`${period.progressPercentage.toFixed(1)}% Completed`, pageWidth - margin - 6, y + 8, { align: 'right' });
+  doc.setTextColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.text(`${period.progressPercentage.toFixed(1)}% Completed`, pageWidth - margin - 6, y + 7.5, { align: 'right' });
 
   // Progress Bar
   const barY = y + 11;
   const barWidth = contentWidth - 12;
-  const barHeight = 4;
-  doc.setFillColor(226, 232, 240); // empty bar
-  doc.roundedRect(margin + 6, barY, barWidth, barHeight, 2, 2, 'F');
+  const barHeight = 3.8;
+  doc.setFillColor(226, 232, 240);
+  doc.roundedRect(margin + 6, barY, barWidth, barHeight, 1.9, 1.9, 'F');
 
   const filledWidth = Math.max(2, (barWidth * Math.min(100, period.progressPercentage)) / 100);
-  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.roundedRect(margin + 6, barY, filledWidth, barHeight, 2, 2, 'F');
+  doc.setFillColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.roundedRect(margin + 6, barY, filledWidth, barHeight, 1.9, 1.9, 'F');
 
-  // 4 Column Metrics
-  const colWidth = (contentWidth - 12) / 4;
-  const metricsY = y + 22;
+  // 3 Key Metrics Columns (All formatted in strict MM:SS)
+  const metricColWidth = (contentWidth - 12) / 3;
+  const metricY = y + 21;
 
-  // Metric 1: Elapsed
+  // Metric 1: Completed Runtime
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('PERIOD RUNTIME', margin + 6, metricsY);
+  doc.text('COMPLETED RUNTIME', margin + 6, metricY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.text(period.completedFormatted, margin + 6, metricY + 6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text(`of 90:00 target`, margin + 6, metricY + 11);
+
+  // Metric 2: Remaining Runtime
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('REMAINING RUNTIME', margin + 6 + metricColWidth, metricY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(period.remainingFormatted, margin + 6 + metricColWidth, metricY + 6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text(`to complete 90:00 block`, margin + 6 + metricColWidth, metricY + 11);
+
+  // Metric 3: Extra / Carryover
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('EXTRA / CARRYOVER', margin + 6 + metricColWidth * 2, metricY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  const extraCarryoverFormatted = formatSecondsDigital(period.totalExtraCarryoverSeconds);
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(extraCarryoverFormatted, margin + 6 + metricColWidth * 2, metricY + 6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text(period.totalExtraCarryoverSeconds > 0 ? 'Carried into next period' : 'None', margin + 6 + metricColWidth * 2, metricY + 11);
+
+  y += cardHeight + 7;
+
+  // ==========================================
+  // 3. CONTRIBUTING VIDEOS TABLE
+  // ==========================================
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(formatSecondsDigital(period.totalOriginalRuntimeSeconds, true), margin + 6, metricsY + 5);
-  doc.setFontSize(7);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text(`${formatMinutesDisplay(period.totalOriginalRuntimeSeconds / 60)}`, margin + 6, metricsY + 9);
-
-  // Metric 2: Completed to this 90m block
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('CREDITED (90m TARGET)', margin + 6 + colWidth, metricsY);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(period.completedFormatted, margin + 6 + colWidth, metricsY + 5);
-  doc.setFontSize(7);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text(`${formatMinutesDisplay(period.completedMinutes)} / 90 min`, margin + 6 + colWidth, metricsY + 9);
-
-  // Metric 3: Remaining
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('REMAINING RUNTIME', margin + 6 + colWidth * 2, metricsY);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(period.remainingFormatted, margin + 6 + colWidth * 2, metricsY + 5);
-  doc.setFontSize(7);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text(`${formatMinutesDisplay(period.remainingMinutes)} remaining`, margin + 6 + colWidth * 2, metricsY + 9);
-
-  // Metric 4: Carryover / Extra
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('EXTRA / CARRYOVER', margin + 6 + colWidth * 3, metricsY);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(period.totalExtraCarryoverSeconds > 0 ? accentSky[0] : textDark[0], period.totalExtraCarryoverSeconds > 0 ? accentSky[1] : textDark[1], period.totalExtraCarryoverSeconds > 0 ? accentSky[2] : textDark[2]);
-  doc.text(formatSecondsDigital(period.totalExtraCarryoverSeconds, true), margin + 6 + colWidth * 3, metricsY + 5);
-  doc.setFontSize(7);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text(period.totalExtraCarryoverSeconds > 0 ? 'Pushed to next period' : 'None', margin + 6 + colWidth * 3, metricsY + 9);
-
-  y += 40;
-
-  // --- CONTRIBUTING VIDEOS SECTION ---
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(`VIDEOS CONTRIBUTING TO THIS 90-MINUTE PERIOD (${period.contributions.length})`, margin, y);
+  doc.text(`VIDEOS CONTRIBUTING TO THIS EDITING PERIOD (${period.contributions.length})`, margin, y);
 
   y += 4;
 
-  // Table Header
+  // Column layout coordinates
+  // Margin: 14, ContentWidth: 182
+  const colX = {
+    preview: margin + 2,      // width 16
+    title: margin + 20,       // width 72
+    total: margin + 94,       // width 22
+    added: margin + 118,      // width 22
+    extra: margin + 142,      // width 20
+    date: margin + 164,       // width 18
+  };
+
+  // Table Header row
   doc.setFillColor(241, 245, 249); // Slate-100
   doc.rect(margin, y, contentWidth, 7, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105); // Slate-600
+  doc.setTextColor(71, 85, 105);
 
-  const colThumbX = margin + 2;
-  const colTitleX = margin + 18;
-  const colRuntimeX = margin + 92;
-  const colCreditedX = margin + 120;
-  const colExtraX = margin + 148;
-  const colDateX = margin + 172;
-
-  doc.text('PREVIEW', colThumbX, y + 4.8);
-  doc.text('VIDEO TITLE', colTitleX, y + 4.8);
-  doc.text('TOTAL RUNTIME', colRuntimeX, y + 4.8);
-  doc.text('CREDITED (THIS BLOCK)', colCreditedX, y + 4.8);
-  doc.text('EXTRA (NEXT)', colExtraX, y + 4.8);
-  doc.text('DATE', colDateX, y + 4.8);
+  doc.text('PREVIEW', colX.preview, y + 4.8);
+  doc.text('VIDEO TITLE', colX.title, y + 4.8);
+  doc.text('TOTAL', colX.total, y + 4.8);
+  doc.text('ADDED', colX.added, y + 4.8);
+  doc.text('EXTRA', colX.extra, y + 4.8);
+  doc.text('DATE', colX.date, y + 4.8);
 
   y += 7;
 
   if (period.contributions.length === 0) {
-    // Empty row
+    // Empty state row
     doc.setFillColor(255, 255, 255);
     doc.rect(margin, y, contentWidth, 12, 'F');
     doc.setFont('helvetica', 'italic');
@@ -241,86 +340,99 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   } else {
     for (let i = 0; i < period.contributions.length; i++) {
       const contrib = period.contributions[i];
-      const rowHeight = 12;
+      const rowHeight = 13.5;
 
-      // Check if page overflow
-      if (y + rowHeight > pageHeight - 35) {
+      // Page break check (leave room for summary card)
+      if (y + rowHeight > pageHeight - 45) {
         doc.addPage();
         y = margin;
       }
 
-      // Alternate row background
+      // Zebra striping
       if (i % 2 === 0) {
         doc.setFillColor(255, 255, 255);
       } else {
         doc.setFillColor(248, 250, 252);
       }
       doc.rect(margin, y, contentWidth, rowHeight, 'F');
-      doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
+      doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2]);
       doc.setLineWidth(0.15);
       doc.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight);
 
-      // Thumbnail Image or fallback
+      // Thumbnail Image or clean placeholder
       const thumbB64 = thumbnailMap[contrib.videoId];
       if (thumbB64) {
         try {
-          doc.addImage(thumbB64, 'JPEG', colThumbX, y + 1.5, 13, 8.5);
+          doc.addImage(thumbB64, 'JPEG', colX.preview, y + 1.8, 14, 9.5);
         } catch {
-          // Draw fallback box
           doc.setFillColor(226, 232, 240);
-          doc.rect(colThumbX, y + 1.5, 13, 8.5, 'F');
+          doc.roundedRect(colX.preview, y + 1.8, 14, 9.5, 1, 1, 'F');
         }
       } else {
         doc.setFillColor(226, 232, 240);
-        doc.rect(colThumbX, y + 1.5, 13, 8.5, 'F');
+        doc.roundedRect(colX.preview, y + 1.8, 14, 9.5, 1, 1, 'F');
       }
 
-      // Title (truncate if too long)
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-      const maxTitleWidth = 70;
-      let displayTitle = contrib.videoTitle;
-      while (doc.getTextWidth(displayTitle) > maxTitleWidth && displayTitle.length > 5) {
-        displayTitle = displayTitle.slice(0, -4) + '...';
-      }
-      doc.text(displayTitle, colTitleX, y + 5.5);
+      // Render Video Title with complete Bangla / Unicode glyph shaping via Canvas Text Image
+      const titleImg = renderUnicodeTextToCanvasImage(contrib.videoTitle, {
+        fontSizePt: 8.5,
+        fontWeight: 'bold',
+        color: '#0F172A',
+        maxWidthMm: 70,
+        scale: 4,
+      });
 
-      // YouTube notice if available
+      if (titleImg.dataUrl) {
+        try {
+          doc.addImage(titleImg.dataUrl, 'PNG', colX.title, y + 1.5, titleImg.widthMm, titleImg.heightMm);
+        } catch {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+          doc.text(contrib.videoTitle.slice(0, 32), colX.title, y + 6);
+        }
+      } else {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+        doc.text(contrib.videoTitle.slice(0, 32), colX.title, y + 6);
+      }
+
+      // YouTube verified notice
       if (contrib.youtubeUrl) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-        doc.text('YouTube Verified', colTitleX, y + 9.5);
+        doc.text('YouTube Verified', colX.title, y + 10.5);
       }
 
-      // Total Runtime
+      // Total Runtime (MM:SS)
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(8.5);
       doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-      doc.text(contrib.originalDurationFormatted, colRuntimeX, y + 6);
+      doc.text(contrib.originalDurationFormatted, colX.total, y + 7);
 
-      // Credited to this period
+      // Added / Credited Runtime (MM:SS)
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text(contrib.contributionFormatted, colCreditedX, y + 6);
+      doc.setTextColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+      doc.text(contrib.contributionFormatted, colX.added, y + 7);
 
-      // Extra / Carryover
+      // Extra / Carryover Runtime (MM:SS or "—")
       if (contrib.extraSecondsToNextPeriod > 0) {
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(accentSky[0], accentSky[1], accentSky[2]);
-        doc.text(contrib.extraFormattedToNextPeriod, colExtraX, y + 6);
+        doc.setTextColor(14, 165, 233); // Sky-500
+        doc.text(contrib.extraFormattedToNextPeriod, colX.extra, y + 7);
       } else {
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-        doc.text('—', colExtraX + 2, y + 6);
+        doc.text('—', colX.extra + 3, y + 7);
       }
 
       // Date
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text(contrib.completionDate || '—', colDateX, y + 6);
+      doc.text(contrib.completionDate || '—', colX.date, y + 7);
 
       y += rowHeight;
     }
@@ -328,84 +440,80 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
 
   y += 6;
 
-  // --- CONTRACT OVERALL SCOPE SUMMARY (NO PAYMENT DETAILS) ---
-  if (y + 36 > pageHeight - 25) {
+  // ==========================================
+  // 4. SUMMARY CARD (NO FINANCIAL / NO 540M)
+  // ==========================================
+  const summaryHeight = 22;
+  if (y + summaryHeight > pageHeight - 20) {
     doc.addPage();
     y = margin;
   }
 
-  doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
-  doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
+  doc.setFillColor(cardLightBg[0], cardLightBg[1], cardLightBg[2]);
+  doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2]);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin, y, contentWidth, 26, 3, 3, 'FD');
+  doc.roundedRect(margin, y, contentWidth, summaryHeight, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text('OVERALL CONTRACT RUNTIME SCOPE', margin + 6, y + 7);
+  doc.text('SUMMARY', margin + 6, y + 6.5);
 
-  doc.setFontSize(8);
-  doc.setTextColor(accentSky[0], accentSky[1], accentSky[2]);
-  doc.text(
-    `${overall.contractProgressPercentage.toFixed(1)}% of ${contract.total_required_minutes}m Scope Completed`,
-    pageWidth - margin - 6,
-    y + 7,
-    { align: 'right' }
-  );
+  const sumColWidth = (contentWidth - 12) / 3;
+  const sumMetricY = y + 11.5;
 
-  // Row of 3 scope stats
-  const scopeColWidth = (contentWidth - 12) / 3;
-  const scopeY = y + 14;
-
+  // Summary Completed Runtime
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('TOTAL CONTRACT SCOPE', margin + 6, scopeY);
+  doc.text('COMPLETED RUNTIME:', margin + 6, sumMetricY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.text(period.completedFormatted, margin + 6 + 36, sumMetricY);
+
+  // Summary Remaining Runtime
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('REMAINING RUNTIME:', margin + 6 + sumColWidth, sumMetricY);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(`${contract.total_required_minutes} Minutes (540m)`, margin + 6, scopeY + 5);
+  doc.text(period.remainingFormatted, margin + 6 + sumColWidth + 36, sumMetricY);
 
+  // Summary Extra / Carryover
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('TOTAL COMPLETED RUNTIME', margin + 6 + scopeColWidth, scopeY);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`${formatMinutesDisplay(overall.totalCompletedMinutes)} (${overall.totalCompletedFormatted})`, margin + 6 + scopeColWidth, scopeY + 5);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('TOTAL REMAINING RUNTIME', margin + 6 + scopeColWidth * 2, scopeY);
+  doc.text('EXTRA / CARRYOVER:', margin + 6 + sumColWidth * 2, sumMetricY);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-  doc.text(`${formatMinutesDisplay(overall.minutesRemaining)}`, margin + 6 + scopeColWidth * 2, scopeY + 5);
+  doc.text(formatSecondsDigital(period.totalExtraCarryoverSeconds), margin + 6 + sumColWidth * 2 + 36, sumMetricY);
 
-  y += 32;
-
-  // --- OFFICIAL FOOTER NOTICE ---
+  // ==========================================
+  // 5. OFFICIAL FOOTER NOTE
+  // ==========================================
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
   doc.text(
     'This is an official video editing runtime progress verification report. Minutes carry forward dynamically.',
     margin,
-    pageHeight - margin
+    pageHeight - margin + 2
   );
 
   doc.text(
     `Page ${doc.getNumberOfPages()} of ${doc.getNumberOfPages()}`,
     pageWidth - margin,
-    pageHeight - margin,
+    pageHeight - margin + 2,
     { align: 'right' }
   );
 
   // Save / Download PDF
   const cleanDate = new Date().toISOString().split('T')[0];
   const sanitizedContractName = contract.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const filename = `Video_Editing_Status_Report_${sanitizedContractName}_${cleanDate}.pdf`;
+  const filename = `Video_Editing_Progress_Report_${sanitizedContractName}_${cleanDate}.pdf`;
   doc.save(filename);
 }
