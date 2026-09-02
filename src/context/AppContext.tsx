@@ -39,6 +39,7 @@ interface AppContextType {
   isLoadingData: boolean;
   loginWithSupabase: (email: string, pass: string) => Promise<{ error?: string }>;
   signupWithSupabase: (email: string, pass: string, name: string) => Promise<{ error?: string; message?: string }>;
+  loginWithGoogle: () => Promise<{ error?: string }>;
   logout: () => Promise<void>;
 
   // Data
@@ -353,41 +354,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const processSession = async (session: any, eventName?: string) => {
       if (session?.user) {
         const prof: Profile = {
           id: session.user.id,
           user_id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Video Editor',
+          name:
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            session.user.email?.split('@')[0] ||
+            'Video Editor',
           email: session.user.email,
           created_at: session.user.created_at,
           updated_at: new Date().toISOString(),
         };
         setUser(prof);
-        loadUserData(session.user.id);
-      } else {
-        setUser(null);
-      }
-      setIsLoadingAuth(false);
-    });
+        await loadUserData(session.user.id);
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const prof: Profile = {
-          id: session.user.id,
-          user_id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Video Editor',
-          email: session.user.email,
-          created_at: session.user.created_at,
-          updated_at: new Date().toISOString(),
-        };
-        setUser(prof);
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-          await loadUserData(session.user.id);
+        // Ensure newly authenticated user is directed to the dashboard
+        if (eventName === 'SIGNED_IN') {
+          setActiveTab('dashboard');
+        }
+
+        // Clean up OAuth tokens / codes from browser URL if present
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          if (url.searchParams.has('code') || url.hash.includes('access_token')) {
+            url.searchParams.delete('code');
+            url.searchParams.delete('state');
+            const cleanQuery = url.searchParams.toString() ? `?${url.searchParams.toString()}` : '';
+            window.history.replaceState({}, document.title, `${url.pathname}${cleanQuery}`);
+          }
         }
       } else {
         setUser(null);
@@ -396,6 +393,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setShareLink(null);
       }
       setIsLoadingAuth(false);
+    };
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      processSession(session);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      await processSession(session, event);
     });
 
     return () => {
@@ -1043,6 +1052,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [loadUserData, addToast]
   );
 
+  const loginWithGoogle = useCallback(async (): Promise<{ error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        error:
+          'Authentication is currently unavailable. Please check the application\'s Supabase configuration.',
+      };
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+      return {};
+    } catch (err: any) {
+      return { error: err.message || 'Google authentication failed' };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     if (isSupabaseConfigured && supabase) {
       try {
@@ -1078,6 +1112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLoadingData,
       loginWithSupabase,
       signupWithSupabase,
+      loginWithGoogle,
       logout,
       contract,
       videos,
@@ -1120,6 +1155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLoadingData,
       loginWithSupabase,
       signupWithSupabase,
+      loginWithGoogle,
       logout,
       contract,
       videos,

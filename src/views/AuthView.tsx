@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Film, Lock, Mail, User, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Film, Lock, Mail, User, ArrowRight, ShieldCheck, AlertTriangle, Chrome } from 'lucide-react';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 export const AuthView: React.FC = () => {
-  const { loginWithSupabase, signupWithSupabase, isLoadingAuth } = useApp();
+  const { loginWithSupabase, signupWithSupabase, loginWithGoogle, isLoadingAuth } = useApp();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -12,6 +12,58 @@ export const AuthView: React.FC = () => {
   const [name, setName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Check URL query parameters and hash for OAuth errors upon redirection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashString = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    const hashParams = new URLSearchParams(hashString);
+
+    const errorDesc =
+      searchParams.get('error_description') ||
+      hashParams.get('error_description') ||
+      searchParams.get('error') ||
+      hashParams.get('error');
+
+    if (errorDesc) {
+      const decoded = decodeURIComponent(errorDesc.replace(/\+/g, ' '));
+      setErrorMsg(`Google sign-in error: ${decoded}`);
+
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setErrorMsg('');
+    setSuccessNotice('');
+
+    if (!isSupabaseConfigured) {
+      setErrorMsg(
+        'Authentication is currently unavailable. Please check the application\'s Supabase configuration (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY).'
+      );
+      return;
+    }
+
+    setIsGoogleLoading(true);
+    try {
+      const res = await loginWithGoogle();
+      if (res.error) {
+        setErrorMsg(res.error);
+        setIsGoogleLoading(false);
+      }
+      // If successful, Supabase handles redirection to Google OAuth consent
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to initiate Google authentication.');
+      setIsGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +154,34 @@ export const AuthView: React.FC = () => {
             {successNotice}
           </div>
         )}
+
+        {/* Continue with Google OAuth Button */}
+        <div className="mb-5 space-y-4">
+          <button
+            id="continue-with-google-btn"
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isLoadingAuth || isGoogleLoading}
+            className="w-full py-2.5 px-4 rounded-xl bg-[#222631] hover:bg-[#2B3240] border border-[#262B36] text-slate-100 font-semibold text-xs flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm"
+          >
+            <Chrome className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              {isGoogleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+            </span>
+          </button>
+
+          {/* Visual Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#262B36]" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-[#161920] px-3 text-[#64748B] text-[11px] font-semibold uppercase tracking-wider">
+                or continue with email
+              </span>
+            </div>
+          </div>
+        </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
