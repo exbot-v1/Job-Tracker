@@ -398,8 +398,13 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
         doc.text(contrib.videoTitle.slice(0, 32), colX.title, y + 6);
       }
 
-      // YouTube verified notice
-      if (contrib.youtubeUrl) {
+      // FROM PREVIOUS CYCLE notice or YouTube verified notice
+      if (contrib.isFromPreviousCycle) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(217, 119, 6); // Amber-600
+        doc.text('[FROM PREVIOUS CYCLE]', colX.title, y + 10.5);
+      } else if (contrib.youtubeUrl) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);

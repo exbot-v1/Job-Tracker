@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  CornerDownRight,
 } from 'lucide-react';
 import {
   formatCurrency,
@@ -350,38 +351,39 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
         />
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-100 text-sm truncate max-w-md">
+              {c.videoTitle}
+            </span>
             {c.isFromPreviousCycle && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                <CornerDownRight className="w-3 h-3 text-amber-400" />
                 FROM PREVIOUS CYCLE
               </span>
             )}
-            <span className="font-bold text-slate-100 text-sm truncate">
-              {c.videoTitle}
-            </span>
             {c.isPartialContribution && !c.isFromPreviousCycle ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
                 Split at 90:00 boundary
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap font-mono">
-            <span>Original duration: <strong className="text-slate-200">{c.originalDurationFormatted}</strong></span>
+          <div className="flex items-center gap-3 text-[11px] sm:text-xs text-[#94A3B8] flex-wrap font-mono">
+            <span>Total: <strong className="text-slate-200">{c.originalDurationFormatted}</strong></span>
+            <span>•</span>
+            <span>Counted in current period: <strong className="text-emerald-400 font-bold">{c.contributionFormatted}</strong></span>
             {c.isFromPreviousCycle && c.countedInPreviousCyclesSeconds > 0 && (
               <>
                 <span>•</span>
-                <span className="text-slate-400">Previous cycle: <strong className="text-slate-300">{c.countedInPreviousCyclesFormatted}</strong></span>
+                <span className="text-slate-400 font-sans">({c.countedInPreviousCyclesFormatted} in previous cycle)</span>
               </>
             )}
-            <span>•</span>
-            <span>Counted in this cycle: <strong className="text-emerald-400 font-bold">{c.contributionFormatted}</strong></span>
             {c.carryoverToNextCycleSeconds > 0 && (
               <>
                 <span>•</span>
-                <span className="text-sky-300">Carryover to Next Cycle: <strong className="font-bold">{c.carryoverToNextCycleFormatted}</strong></span>
+                <span className="text-sky-300 font-sans">Carryover to Next Cycle: <strong className="font-mono font-bold">{c.carryoverToNextCycleFormatted}</strong></span>
               </>
             )}
             <span>•</span>
-            <span className="font-sans">Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
+            <span className="font-sans">Date: <strong className="text-slate-300">{c.completionDate}</strong></span>
             {c.notes && (
               <>
                 <span>•</span>
@@ -804,10 +806,15 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
             {/* Contributing Videos so far in this cycle */}
             <div className="space-y-3 pt-2 border-t border-[#262B36]">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
                   <Film className="w-4 h-4 text-sky-400" />
-                  <span>Videos Contributing so far in Cycle #{currentInProgressCycle.cycleNumber}</span>
+                  <span className="uppercase tracking-wider font-bold">
+                    VIDEOS CONTRIBUTING TO THIS EDITING PERIOD
+                  </span>
+                  <span className="text-xs text-sky-400 font-mono font-semibold">
+                    (Cycle #{currentInProgressCycle.cycleNumber})
+                  </span>
                 </h3>
                 <span className="text-xs text-[#94A3B8] font-mono">
                   {currentInProgressCycle.contributions.length} {currentInProgressCycle.contributions.length === 1 ? 'entry' : 'entries'} • {formatSecondsDigital(currentInProgressCycle.completedSeconds, true)}
