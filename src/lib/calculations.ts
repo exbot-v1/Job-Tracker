@@ -478,11 +478,18 @@ export function calculateEditingCycles(
       cycleNumber: i,
       targetMinutes: milestoneMinutes,
       targetSeconds: milestoneSeconds,
+      startingCarryoverSeconds: 0,
+      startingCarryoverFormatted: '00:00',
+      newVideoRuntimeSeconds: 0,
+      newVideoRuntimeFormatted: '00:00',
+      carryoverToNextCycleSeconds: 0,
+      carryoverToNextCycleFormatted: '00:00',
       completedSeconds: 0,
       completedMinutes: 0,
       completedFormatted: '00:00',
       remainingSeconds: milestoneSeconds,
       remainingMinutes: milestoneMinutes,
+      remainingFormatted: formatSecondsDigital(milestoneSeconds, true),
       progressPercentage: 0,
       status: 'upcoming',
       isEarned: false,
@@ -504,6 +511,8 @@ export function calculateEditingCycles(
 
     const originalDurationSeconds = video.duration_seconds;
     const completionDate = video.completion_date || video.completed_at || '';
+    let countedInPreviousCyclesSeconds = 0;
+    let isFirstAllocationForVideo = true;
 
     while (videoRemainingSeconds > 0 && currentCycleIdx < totalCyclesCount) {
       const cycle = cycles[currentCycleIdx];
@@ -514,50 +523,124 @@ export function calculateEditingCycles(
         continue;
       }
 
-      const allocatedSeconds = Math.min(videoRemainingSeconds, cycleNeededSeconds);
-      const isPartial = allocatedSeconds < originalDurationSeconds;
-      const partialPercentage = originalDurationSeconds > 0
-        ? Math.round((allocatedSeconds / originalDurationSeconds) * 1000) / 10
-        : 100;
+      const isFromPreviousCycle = !isFirstAllocationForVideo;
 
-      cycle.contributions.push({
-        videoId: video.id,
-        videoTitle: video.title,
-        originalDurationSeconds,
-        originalDurationFormatted: formatSecondsDigital(originalDurationSeconds, true),
-        contributionSeconds: allocatedSeconds,
-        contributionMinutes: allocatedSeconds / 60,
-        contributionFormatted: formatSecondsDigital(allocatedSeconds, true),
-        completionDate,
-        completedAt: video.completed_at || video.completion_date,
-        youtubeUrl: video.youtube_url,
-        notes: video.notes,
-        isPartialContribution: isPartial,
-        partialPercentage,
-      });
+      if (videoRemainingSeconds <= cycleNeededSeconds) {
+        // The remaining duration fits entirely within this cycle
+        const allocatedSeconds = videoRemainingSeconds;
 
-      cycle.completedSeconds += allocatedSeconds;
-      videoRemainingSeconds -= allocatedSeconds;
+        if (!isFromPreviousCycle) {
+          cycle.newVideoRuntimeSeconds += originalDurationSeconds;
+        }
 
-      // If this cycle is completely filled
-      if (cycle.completedSeconds >= milestoneSeconds) {
+        const isPartial = allocatedSeconds < originalDurationSeconds;
+        const partialPercentage = originalDurationSeconds > 0
+          ? Math.round((allocatedSeconds / originalDurationSeconds) * 1000) / 10
+          : 100;
+
+        cycle.contributions.push({
+          videoId: video.id,
+          videoTitle: video.title,
+          originalDurationSeconds,
+          originalDurationFormatted: formatSecondsDigital(originalDurationSeconds, true),
+          contributionSeconds: allocatedSeconds,
+          contributionMinutes: allocatedSeconds / 60,
+          contributionFormatted: formatSecondsDigital(allocatedSeconds, true),
+          completionDate,
+          completedAt: video.completed_at || video.completion_date,
+          youtubeUrl: video.youtube_url,
+          notes: video.notes,
+          isPartialContribution: isPartial,
+          partialPercentage,
+          isFromPreviousCycle,
+          countedInPreviousCyclesSeconds,
+          countedInPreviousCyclesFormatted: formatSecondsDigital(countedInPreviousCyclesSeconds, true),
+          carryoverToNextCycleSeconds: 0,
+          carryoverToNextCycleFormatted: '00:00',
+          extraSecondsToNextPeriod: 0,
+          extraFormattedToNextPeriod: '00:00',
+        });
+
+        cycle.completedSeconds += allocatedSeconds;
+        videoRemainingSeconds = 0;
+
+        if (cycle.completedSeconds >= milestoneSeconds) {
+          cycle.completedAtDate = completionDate;
+          currentCycleIdx++;
+        }
+      } else {
+        // Video exceeds the remaining capacity of this cycle and crosses boundary
+        const allocatedSeconds = cycleNeededSeconds;
+        const carryoverToNext = videoRemainingSeconds - allocatedSeconds;
+
+        if (!isFromPreviousCycle) {
+          cycle.newVideoRuntimeSeconds += originalDurationSeconds;
+        }
+
+        cycle.carryoverToNextCycleSeconds += carryoverToNext;
+
+        const isPartial = true;
+        const partialPercentage = originalDurationSeconds > 0
+          ? Math.round((allocatedSeconds / originalDurationSeconds) * 1000) / 10
+          : 100;
+
+        cycle.contributions.push({
+          videoId: video.id,
+          videoTitle: video.title,
+          originalDurationSeconds,
+          originalDurationFormatted: formatSecondsDigital(originalDurationSeconds, true),
+          contributionSeconds: allocatedSeconds,
+          contributionMinutes: allocatedSeconds / 60,
+          contributionFormatted: formatSecondsDigital(allocatedSeconds, true),
+          completionDate,
+          completedAt: video.completed_at || video.completion_date,
+          youtubeUrl: video.youtube_url,
+          notes: video.notes,
+          isPartialContribution: isPartial,
+          partialPercentage,
+          isFromPreviousCycle,
+          countedInPreviousCyclesSeconds,
+          countedInPreviousCyclesFormatted: formatSecondsDigital(countedInPreviousCyclesSeconds, true),
+          carryoverToNextCycleSeconds: carryoverToNext,
+          carryoverToNextCycleFormatted: formatSecondsDigital(carryoverToNext, true),
+          extraSecondsToNextPeriod: carryoverToNext,
+          extraFormattedToNextPeriod: formatSecondsDigital(carryoverToNext, true),
+        });
+
+        cycle.completedSeconds += allocatedSeconds;
         cycle.completedAtDate = completionDate;
+
+        countedInPreviousCyclesSeconds += allocatedSeconds;
+        videoRemainingSeconds -= allocatedSeconds;
+        isFirstAllocationForVideo = false;
         currentCycleIdx++;
       }
     }
   }
 
-  // Update calculated metrics per cycle
+  // Update calculated metrics per cycle, linking startingCarryover and formatting
   let completedCyclesCount = 0;
   let totalCompletedSecondsAcrossContract = 0;
 
   for (let i = 0; i < cycles.length; i++) {
     const cycle = cycles[i];
+
+    // Starting carryover is the exact overflow from the immediately preceding cycle
+    if (i > 0) {
+      cycle.startingCarryoverSeconds = cycles[i - 1].carryoverToNextCycleSeconds;
+    } else {
+      cycle.startingCarryoverSeconds = 0;
+    }
+    cycle.startingCarryoverFormatted = formatSecondsDigital(cycle.startingCarryoverSeconds, true);
+    cycle.newVideoRuntimeFormatted = formatSecondsDigital(cycle.newVideoRuntimeSeconds, true);
+    cycle.carryoverToNextCycleFormatted = formatSecondsDigital(cycle.carryoverToNextCycleSeconds, true);
+
     totalCompletedSecondsAcrossContract += cycle.completedSeconds;
     cycle.completedMinutes = cycle.completedSeconds / 60;
     cycle.completedFormatted = formatSecondsDigital(cycle.completedSeconds, true);
     cycle.remainingSeconds = Math.max(0, cycle.targetSeconds - cycle.completedSeconds);
     cycle.remainingMinutes = cycle.remainingSeconds / 60;
+    cycle.remainingFormatted = formatSecondsDigital(cycle.remainingSeconds, true);
     cycle.progressPercentage = Math.min(100, (cycle.completedSeconds / cycle.targetSeconds) * 100);
 
     if (cycle.completedSeconds >= cycle.targetSeconds) {
@@ -629,6 +712,12 @@ export interface CurrentEditingPeriodDetails {
   status: 'in_progress' | 'completed' | 'upcoming';
   targetMinutes: number;
   targetSeconds: number;
+  startingCarryoverSeconds: number;
+  startingCarryoverFormatted: string;
+  newVideoRuntimeSeconds: number;
+  newVideoRuntimeFormatted: string;
+  carryoverToNextCycleSeconds: number;
+  carryoverToNextCycleFormatted: string;
   completedSeconds: number;
   completedMinutes: number;
   completedFormatted: string;
@@ -649,7 +738,7 @@ export interface CurrentEditingPeriodDetails {
 
 /**
  * Get rich details of the current 90-minute editing period,
- * including exact start date (from first video contribution) and boundary split info.
+ * including exact start date (from first video contribution) and explicit carryover breakdown.
  */
 export function getCurrentEditingPeriodDetails(
   videos: Video[],
@@ -657,7 +746,7 @@ export function getCurrentEditingPeriodDetails(
   payments: PaymentRecord[] = []
 ): CurrentEditingPeriodDetails {
   const summary = calculateEditingCycles(videos, contract, payments);
-  const milestoneMinutes = contract.milestone_minutes || 90;
+  const milestoneMinutes = contract.milestone_minutes || contract.milestone_runtime_minutes || 90;
   const milestoneSeconds = milestoneMinutes * 60;
 
   const targetCycle = summary.currentInProgressCycle || summary.latestCompletedCycle || summary.cycles[0];
@@ -690,28 +779,37 @@ export function getCurrentEditingPeriodDetails(
   }
 
   let totalOriginalRuntimeSeconds = 0;
-  let totalExtraCarryoverSeconds = 0;
-
-  const enrichedContributions = rawContributions.map((contrib) => {
+  for (const contrib of rawContributions) {
     totalOriginalRuntimeSeconds += contrib.originalDurationSeconds;
-    const extraSeconds = Math.max(0, contrib.originalDurationSeconds - contrib.contributionSeconds);
-    totalExtraCarryoverSeconds += extraSeconds;
+  }
 
-    return {
-      ...contrib,
-      extraSecondsToNextPeriod: extraSeconds,
-      extraFormattedToNextPeriod: formatSecondsDigital(extraSeconds, true),
-    };
-  });
+  const startingCarryoverSeconds = targetCycle ? targetCycle.startingCarryoverSeconds : 0;
+  const startingCarryoverFormatted = targetCycle ? targetCycle.startingCarryoverFormatted : '00:00';
+  const newVideoRuntimeSeconds = targetCycle ? targetCycle.newVideoRuntimeSeconds : 0;
+  const newVideoRuntimeFormatted = targetCycle ? targetCycle.newVideoRuntimeFormatted : '00:00';
+  const carryoverToNextCycleSeconds = targetCycle ? targetCycle.carryoverToNextCycleSeconds : 0;
+  const carryoverToNextCycleFormatted = targetCycle ? targetCycle.carryoverToNextCycleFormatted : '00:00';
 
   const completedSeconds = targetCycle ? targetCycle.completedSeconds : 0;
   const remainingSeconds = targetCycle ? targetCycle.remainingSeconds : milestoneSeconds;
+
+  const enrichedContributions = rawContributions.map((contrib) => ({
+    ...contrib,
+    extraSecondsToNextPeriod: contrib.carryoverToNextCycleSeconds,
+    extraFormattedToNextPeriod: contrib.carryoverToNextCycleFormatted,
+  }));
 
   return {
     cycleNumber,
     status: targetCycle ? targetCycle.status : 'upcoming',
     targetMinutes: milestoneMinutes,
     targetSeconds: milestoneSeconds,
+    startingCarryoverSeconds,
+    startingCarryoverFormatted,
+    newVideoRuntimeSeconds,
+    newVideoRuntimeFormatted,
+    carryoverToNextCycleSeconds,
+    carryoverToNextCycleFormatted,
     completedSeconds,
     completedMinutes: completedSeconds / 60,
     completedFormatted: formatSecondsDigital(completedSeconds, true),
@@ -723,7 +821,7 @@ export function getCurrentEditingPeriodDetails(
     startDateFormatted,
     totalVideosCount: enrichedContributions.length,
     totalOriginalRuntimeSeconds,
-    totalExtraCarryoverSeconds,
+    totalExtraCarryoverSeconds: carryoverToNextCycleSeconds,
     contributions: enrichedContributions,
   };
 }

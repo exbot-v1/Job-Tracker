@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Info,
   CheckCircle2,
+  CornerDownRight,
 } from 'lucide-react';
 import { CurrentEditingPeriodDetails, formatMinutesDisplay, formatSecondsDigital } from '../lib/calculations';
 import { YouTubeThumbnail } from './YouTubeThumbnail';
@@ -70,7 +71,7 @@ export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
         </div>
       ) : (
         <div className="space-y-3">
-          {period.contributions.map((contrib, index) => {
+          {period.contributions.map((contrib) => {
             return (
               <div
                 key={contrib.videoId}
@@ -87,6 +88,12 @@ export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
 
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {contrib.isFromPreviousCycle && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          <CornerDownRight className="w-3 h-3 text-amber-400" />
+                          FROM PREVIOUS CYCLE
+                        </span>
+                      )}
                       <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate max-w-md">
                         {contrib.videoTitle}
                       </h4>
@@ -107,15 +114,23 @@ export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
                     <div className="flex items-center gap-3 text-xs text-[#94A3B8] flex-wrap font-mono">
                       <span>Total: <strong className="text-slate-200">{contrib.originalDurationFormatted}</strong></span>
                       <span>•</span>
+                      <span>Counted in Period #{period.cycleNumber}: <strong className="text-emerald-400 font-bold">{contrib.contributionFormatted}</strong></span>
+                      {contrib.isFromPreviousCycle && contrib.countedInPreviousCyclesSeconds > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-slate-400">({contrib.countedInPreviousCyclesFormatted} in previous cycle)</span>
+                        </>
+                      )}
+                      <span>•</span>
                       <span>Date: <strong className="text-slate-300 font-sans">{contrib.completionDate}</strong></span>
                     </div>
 
-                    {/* Boundary Split info if applicable */}
-                    {contrib.extraSecondsToNextPeriod > 0 && (
+                    {/* Boundary Split info if carrying forward to next cycle */}
+                    {contrib.carryoverToNextCycleSeconds > 0 && (
                       <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 mt-1">
                         <Info className="w-3 h-3 shrink-0 text-sky-400" />
                         <span>
-                          {contrib.contributionFormatted} applied to Period #{period.cycleNumber} • {contrib.extraFormattedToNextPeriod} carries into Period #{period.cycleNumber + 1}
+                          {contrib.contributionFormatted} counted in Period #{period.cycleNumber} • Carryover to Next Cycle: <strong className="font-mono text-sky-300 font-bold">{contrib.carryoverToNextCycleFormatted}</strong>
                         </span>
                       </div>
                     )}
@@ -135,45 +150,55 @@ export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
         </div>
       )}
 
-      {/* Summary Footer bar */}
-      <div className="pt-3 border-t border-[#262B36] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+      {/* Summary Footer bar with strict carryover terms */}
+      <div className="pt-3 border-t border-[#262B36] grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
         <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60">
-          <span className="text-[#94A3B8] text-[11px] block">Period Total Time:</span>
-          <span className="font-bold text-slate-100 font-mono text-sm">
-            {formatSecondsDigital(period.totalOriginalRuntimeSeconds, true)}
+          <span className="text-[#94A3B8] text-[11px] block">Starting Carryover:</span>
+          <span className={`font-bold font-mono text-sm ${period.startingCarryoverSeconds > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+            {period.startingCarryoverFormatted}
           </span>
           <span className="text-[10px] text-[#64748B] block">
-            {formatMinutesDisplay(period.totalOriginalRuntimeSeconds / 60)}
+            {period.startingCarryoverSeconds > 0 ? 'From previous cycle' : 'None'}
           </span>
         </div>
 
         <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60">
-          <span className="text-[#94A3B8] text-[11px] block">Completed toward 90m:</span>
+          <span className="text-[#94A3B8] text-[11px] block">New Video Runtime:</span>
+          <span className="font-bold text-slate-100 font-mono text-sm">
+            {period.newVideoRuntimeFormatted}
+          </span>
+          <span className="text-[10px] text-[#64748B] block">
+            Completed in this period
+          </span>
+        </div>
+
+        <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60">
+          <span className="text-[#94A3B8] text-[11px] block">Current Progress:</span>
           <span className="font-bold text-emerald-400 font-mono text-sm">
-            {period.completedFormatted}
+            {period.completedFormatted} / 90:00
           </span>
           <span className="text-[10px] text-emerald-500/70 block">
-            {formatMinutesDisplay(period.completedMinutes)} / 90m
+            {period.progressPercentage.toFixed(1)}% of 90m
           </span>
         </div>
 
         <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60">
-          <span className="text-[#94A3B8] text-[11px] block">Remaining in Period:</span>
+          <span className="text-[#94A3B8] text-[11px] block">Remaining:</span>
           <span className="font-bold text-slate-200 font-mono text-sm">
             {period.remainingFormatted}
           </span>
           <span className="text-[10px] text-[#64748B] block">
-            {formatMinutesDisplay(period.remainingMinutes)}
+            To reach 90:00 milestone
           </span>
         </div>
 
-        <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60">
-          <span className="text-[#94A3B8] text-[11px] block">Extra / Carryover:</span>
-          <span className={`font-bold font-mono text-sm ${period.totalExtraCarryoverSeconds > 0 ? 'text-sky-400' : 'text-slate-400'}`}>
-            {formatSecondsDigital(period.totalExtraCarryoverSeconds, true)}
+        <div className="p-2.5 rounded-xl bg-[#111318] border border-[#262B36]/60 col-span-2 sm:col-span-1">
+          <span className="text-[#94A3B8] text-[11px] block">Carryover to Next Cycle:</span>
+          <span className={`font-bold font-mono text-sm ${period.carryoverToNextCycleSeconds > 0 ? 'text-sky-400' : 'text-slate-400'}`}>
+            {period.carryoverToNextCycleFormatted}
           </span>
           <span className="text-[10px] text-[#64748B] block">
-            {period.totalExtraCarryoverSeconds > 0 ? 'Pushed to next period' : 'None'}
+            {period.carryoverToNextCycleSeconds > 0 ? 'Exceeds 90m block' : 'None'}
           </span>
         </div>
       </div>

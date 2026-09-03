@@ -274,11 +274,11 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
   doc.text(`to complete 90:00 block`, margin + 6 + metricColWidth, metricY + 11);
 
-  // Metric 3: Extra / Carryover
+  // Metric 3: Carryover to Next Cycle
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('EXTRA / CARRYOVER', margin + 6 + metricColWidth * 2, metricY);
+  doc.text('CARRYOVER TO NEXT CYCLE', margin + 6 + metricColWidth * 2, metricY);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   const extraCarryoverFormatted = formatSecondsDigital(period.totalExtraCarryoverSeconds);
@@ -287,7 +287,7 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text(period.totalExtraCarryoverSeconds > 0 ? 'Carried into next period' : 'None', margin + 6 + metricColWidth * 2, metricY + 11);
+  doc.text(period.totalExtraCarryoverSeconds > 0 ? 'Carried to next cycle' : 'None', margin + 6 + metricColWidth * 2, metricY + 11);
 
   y += cardHeight + 7;
 
@@ -322,8 +322,8 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   doc.text('PREVIEW', colX.preview, y + 4.8);
   doc.text('VIDEO TITLE', colX.title, y + 4.8);
   doc.text('TOTAL', colX.total, y + 4.8);
-  doc.text('ADDED', colX.added, y + 4.8);
-  doc.text('EXTRA', colX.extra, y + 4.8);
+  doc.text('COUNTED', colX.added, y + 4.8);
+  doc.text('CARRYOVER', colX.extra, y + 4.8);
   doc.text('DATE', colX.date, y + 4.8);
 
   y += 7;

@@ -350,27 +350,42 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
         />
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {c.isFromPreviousCycle && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                FROM PREVIOUS CYCLE
+              </span>
+            )}
             <span className="font-bold text-slate-100 text-sm truncate">
               {c.videoTitle}
             </span>
-            {c.isPartialContribution ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                Partial ({formatSecondsDigital(c.contributionSeconds, true)} of {c.originalDurationFormatted} counted)
+            {c.isPartialContribution && !c.isFromPreviousCycle ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                Split at 90:00 boundary
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#222631] text-[#94A3B8] border border-[#2B3240]">
-                Full video counted
-              </span>
-            )}
+            ) : null}
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap">
-            <span>Original duration: <strong className="text-slate-300 font-mono">{c.originalDurationFormatted}</strong></span>
+          <div className="flex items-center gap-3 text-[11px] text-[#94A3B8] flex-wrap font-mono">
+            <span>Original duration: <strong className="text-slate-200">{c.originalDurationFormatted}</strong></span>
+            {c.isFromPreviousCycle && c.countedInPreviousCyclesSeconds > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-slate-400">Previous cycle: <strong className="text-slate-300">{c.countedInPreviousCyclesFormatted}</strong></span>
+              </>
+            )}
             <span>•</span>
-            <span>Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
+            <span>Counted in this cycle: <strong className="text-emerald-400 font-bold">{c.contributionFormatted}</strong></span>
+            {c.carryoverToNextCycleSeconds > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-sky-300">Carryover to Next Cycle: <strong className="font-bold">{c.carryoverToNextCycleFormatted}</strong></span>
+              </>
+            )}
+            <span>•</span>
+            <span className="font-sans">Completed: <strong className="text-slate-300">{c.completionDate}</strong></span>
             {c.notes && (
               <>
                 <span>•</span>
-                <span className="text-[#64748B] italic truncate max-w-xs">{c.notes}</span>
+                <span className="text-[#64748B] italic truncate max-w-xs font-sans">{c.notes}</span>
               </>
             )}
           </div>
@@ -381,8 +396,7 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
         <div className="text-left sm:text-right">
           <span className="text-[10px] uppercase tracking-wider text-[#94A3B8] block">Counted in Cycle</span>
           <span className="font-mono font-black text-emerald-400 text-sm">
-            {formatSecondsDigital(c.contributionSeconds, true)}
-            <span className="text-[11px] font-normal text-[#94A3B8] ml-1">({formatMinutesDisplay(c.contributionMinutes)})</span>
+            {c.contributionFormatted}
           </span>
         </div>
 
@@ -586,12 +600,12 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
           {latestCompletedCycle ? (
             <div className="space-y-6">
               {/* Cycle Card Header Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Runtime Target */}
                 <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
-                  <span className="text-[11px] text-[#94A3B8] font-medium block">Completed Cycle Runtime</span>
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Completed Runtime</span>
                   <div className="text-xl font-black text-slate-100 font-mono">
-                    90:00 <span className="text-xs text-[#94A3B8] font-normal font-sans">/ 90:00 min</span>
+                    90:00 <span className="text-xs text-[#94A3B8] font-normal font-sans">/ 90:00</span>
                   </div>
                   <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> 100% threshold achieved
@@ -600,12 +614,25 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
                 {/* Milestone Payout Amount */}
                 <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
-                  <span className="text-[11px] text-[#94A3B8] font-medium block">Cycle Milestone Payout</span>
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Payout Earned</span>
                   <div className="text-xl font-black text-emerald-400 font-mono">
                     {formatCurrency(latestCompletedCycle.paymentAmount)}
                   </div>
                   <span className="text-[11px] text-[#94A3B8]">
-                    Earned upon reaching 90-min runtime
+                    Earned upon reaching 90:00
+                  </span>
+                </div>
+
+                {/* Carryover to Next Cycle */}
+                <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] space-y-1">
+                  <span className="text-[11px] text-[#94A3B8] font-medium block">Carryover to Next Cycle</span>
+                  <div className={`text-xl font-black font-mono ${latestCompletedCycle.carryoverToNextCycleSeconds > 0 ? 'text-sky-300' : 'text-slate-400'}`}>
+                    {latestCompletedCycle.carryoverToNextCycleFormatted}
+                  </div>
+                  <span className="text-[11px] text-[#94A3B8] block">
+                    {latestCompletedCycle.carryoverToNextCycleSeconds > 0
+                      ? `Carried to Cycle #${latestCompletedCycle.cycleNumber + 1}`
+                      : 'Exact 90:00 completion'}
                   </span>
                 </div>
 
@@ -619,7 +646,7 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Earned (Pending Settlement)
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Earned (Pending)
                       </span>
                     )}
                   </div>
@@ -699,11 +726,11 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
                 <div className="space-y-1">
                   <div className="text-xl font-black text-slate-100 font-mono">
-                    {formatSecondsDigital(currentInProgressCycle.completedSeconds, true)}{' '}
+                    {currentInProgressCycle.completedFormatted}{' '}
                     <span className="text-xs text-[#94A3B8] font-normal font-sans">/ 90:00</span>
                   </div>
                   <p className="text-xs text-sky-300 font-medium">
-                    {formatMinutesDisplay(currentInProgressCycle.remainingMinutes)} remaining
+                    {currentInProgressCycle.remainingFormatted} remaining
                   </p>
                   <span className="text-[11px] text-[#94A3B8] block">
                     Next payout: <strong className="text-emerald-400 font-mono">{formatCurrency(currentInProgressCycle.paymentAmount)}</strong>
@@ -711,14 +738,67 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                 </div>
               </div>
 
-              <div className="md:col-span-8 p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] text-xs text-[#94A3B8] space-y-2">
-                <div className="flex items-center justify-between font-semibold text-slate-200">
-                  <span>Cycle #{currentInProgressCycle.cycleNumber} Threshold</span>
-                  <span className="font-mono text-emerald-400">{formatCurrency(currentInProgressCycle.paymentAmount)}</span>
+              {/* Explicit Carryover & Cycle Breakdown Grid */}
+              <div className="md:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">Starting Carryover</span>
+                  <span className={`font-mono font-bold text-sm mt-1 block ${currentInProgressCycle.startingCarryoverSeconds > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+                    {currentInProgressCycle.startingCarryoverFormatted}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] block mt-0.5">
+                    {currentInProgressCycle.startingCarryoverSeconds > 0 ? `From Cycle #${currentInProgressCycle.cycleNumber - 1}` : 'None'}
+                  </span>
                 </div>
-                <p className="text-[11px] leading-relaxed">
-                  Payment is earned once cumulative runtime reaches 90:00 minutes for this cycle. Leftover minutes from previous videos have automatically carried forward into this cycle.
-                </p>
+
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">New Video Runtime</span>
+                  <span className="font-mono font-bold text-slate-100 text-sm mt-1 block">
+                    {currentInProgressCycle.newVideoRuntimeFormatted}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] block mt-0.5">
+                    Completed in this cycle
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">Remaining to Milestone</span>
+                  <span className="font-mono font-bold text-slate-200 text-sm mt-1 block">
+                    {currentInProgressCycle.remainingFormatted}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] block mt-0.5">
+                    To reach 90:00 milestone
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">Current Progress</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm mt-1 block">
+                    {currentInProgressCycle.completedFormatted} / 90:00
+                  </span>
+                  <span className="text-[10px] text-emerald-500/70 block mt-0.5">
+                    {currentInProgressCycle.progressPercentage.toFixed(1)}% threshold
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">Next Payout</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm mt-1 block">
+                    {formatCurrency(currentInProgressCycle.paymentAmount)}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] block mt-0.5">
+                    Upon 90:00 completion
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
+                  <span className="text-[#94A3B8] text-[11px] block">Carryover to Next Cycle</span>
+                  <span className={`font-mono font-bold text-sm mt-1 block ${currentInProgressCycle.carryoverToNextCycleSeconds > 0 ? 'text-sky-300' : 'text-slate-400'}`}>
+                    {currentInProgressCycle.carryoverToNextCycleFormatted}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] block mt-0.5">
+                    {currentInProgressCycle.carryoverToNextCycleSeconds > 0 ? 'Carried forward' : '00:00 until 90m reached'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -808,18 +888,28 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                       </div>
 
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-100 text-sm">
                             Cycle #{cycle.cycleNumber}
                           </span>
                           <span className="font-mono text-xs text-slate-300">
-                            ({formatSecondsDigital(cycle.completedSeconds, true)} / 90:00)
+                            ({cycle.completedFormatted} / 90:00)
                           </span>
                         </div>
-                        <span className="text-[11px] text-[#94A3B8] block">
-                          Milestone payout: <strong className="text-emerald-400 font-mono">{formatCurrency(cycle.paymentAmount)}</strong>
-                          {cycle.completedAtDate ? ` • Completed on ${cycle.completedAtDate}` : ''}
-                        </span>
+                        <div className="flex items-center gap-2 text-[11px] text-[#94A3B8] flex-wrap mt-0.5 font-mono">
+                          <span>Starting Carryover: <strong className="text-slate-300">{cycle.startingCarryoverFormatted}</strong></span>
+                          <span>•</span>
+                          <span>New Runtime: <strong className="text-slate-300">{cycle.newVideoRuntimeFormatted}</strong></span>
+                          {cycle.carryoverToNextCycleSeconds > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-sky-300">Carryover to Next: <strong className="font-bold">{cycle.carryoverToNextCycleFormatted}</strong></span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span className="font-sans">Milestone: <strong className="text-emerald-400 font-mono">{formatCurrency(cycle.paymentAmount)}</strong></span>
+                          {cycle.completedAtDate ? <span className="font-sans text-[#64748B]">• Completed {cycle.completedAtDate}</span> : null}
+                        </div>
                       </div>
                     </div>
 

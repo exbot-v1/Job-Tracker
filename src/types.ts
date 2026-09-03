@@ -187,17 +187,34 @@ export interface CycleVideoContribution {
   notes?: string | null;
   isPartialContribution: boolean;
   partialPercentage: number;
+  // Clear cycle boundary & carryover properties
+  isFromPreviousCycle: boolean;
+  countedInPreviousCyclesSeconds: number;
+  countedInPreviousCyclesFormatted: string;
+  carryoverToNextCycleSeconds: number;
+  carryoverToNextCycleFormatted: string;
+  // Compatibility aliases
+  extraSecondsToNextPeriod?: number;
+  extraFormattedToNextPeriod?: string;
 }
 
 export interface EditingCycle {
   cycleNumber: number;
   targetMinutes: number;
   targetSeconds: number;
+  // Explicit carryover breakdowns
+  startingCarryoverSeconds: number;
+  startingCarryoverFormatted: string;
+  newVideoRuntimeSeconds: number;
+  newVideoRuntimeFormatted: string;
+  carryoverToNextCycleSeconds: number;
+  carryoverToNextCycleFormatted: string;
   completedSeconds: number;
   completedMinutes: number;
   completedFormatted: string;
   remainingSeconds: number;
   remainingMinutes: number;
+  remainingFormatted: string;
   progressPercentage: number;
   status: 'completed' | 'in_progress' | 'upcoming';
   isEarned: boolean;
