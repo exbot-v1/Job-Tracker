@@ -224,7 +224,12 @@ export interface EditingCycle {
   paymentDate?: string | null;
   paymentRecord?: PaymentRecord;
   contributions: CycleVideoContribution[];
+  startDate?: string | null;
+  startDateFormatted?: string;
   completedAtDate?: string | null;
+  completedAtDateFormatted?: string;
+  durationDays?: number | null;
+  durationLabel?: string;
 }
 
 export interface EditingCyclesSummary {

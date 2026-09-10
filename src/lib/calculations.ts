@@ -96,7 +96,11 @@ export function formatMinutesDisplay(minutes: number): string {
 /**
  * Core Contract Progress calculation
  */
-export function calculateContractProgress(videos: Video[], contract: Contract): ContractProgress {
+export function calculateContractProgress(
+  videos: Video[],
+  contract: Contract,
+  payments: PaymentRecord[] = []
+): ContractProgress {
   const totalCompletedSeconds = videos.reduce((sum, v) => sum + (v.duration_seconds || 0), 0);
   const totalCompletedMinutes = totalCompletedSeconds / 60;
 
@@ -105,17 +109,25 @@ export function calculateContractProgress(videos: Video[], contract: Contract): 
   const totalMilestonesCount = Math.round(contract.total_required_minutes / contract.milestone_minutes);
 
   const completedMilestonesCount = Math.floor(totalCompletedSeconds / milestoneSeconds);
-  const earnedAmount = Math.min(
-    contract.total_contract_value,
-    completedMilestonesCount * contract.milestone_payment
-  );
+
+  let earnedAmount = 0;
+  for (let m = 1; m <= completedMilestonesCount; m++) {
+    const p = payments.find((rec) => rec.milestone_number === m);
+    earnedAmount += Number(p?.amount ?? p?.earned_amount) || contract.milestone_payment;
+  }
+
+  let totalContractValue = 0;
+  for (let m = 1; m <= totalMilestonesCount; m++) {
+    const p = payments.find((rec) => rec.milestone_number === m);
+    totalContractValue += Number(p?.amount ?? p?.earned_amount) || contract.milestone_payment;
+  }
 
   const isContractCompleted = totalCompletedSeconds >= totalRequiredSeconds;
   const contractProgressPercentage = Math.min(100, (totalCompletedSeconds / totalRequiredSeconds) * 100);
 
   const secondsRemaining = Math.max(0, totalRequiredSeconds - totalCompletedSeconds);
   const minutesRemaining = secondsRemaining / 60;
-  const moneyRemaining = Math.max(0, contract.total_contract_value - earnedAmount);
+  const moneyRemaining = Math.max(0, totalContractValue - earnedAmount);
 
   // Current milestone calculations
   let currentMilestoneNumber = completedMilestonesCount + 1;
@@ -183,7 +195,9 @@ export function calculateMilestones(
   for (let i = 1; i <= totalMilestonesCount; i++) {
     const thresholdMinutes = i * contract.milestone_minutes;
     const thresholdSeconds = thresholdMinutes * 60;
-    const cumulativePayment = i * contract.milestone_payment;
+    const paymentRecord = payments.find((p) => p.milestone_number === i);
+    const cyclePayment = Number(paymentRecord?.amount ?? paymentRecord?.earned_amount) || contract.milestone_payment;
+    const cumulativePayment = i * cyclePayment;
     const isEarned = totalCompletedSeconds >= thresholdSeconds;
 
     let status: 'completed' | 'current' | 'upcoming' = 'upcoming';
@@ -203,13 +217,11 @@ export function calculateMilestones(
     const progressPercentage = Math.min(100, (completedSecondsInMilestone / milestoneSeconds) * 100);
     const remainingSeconds = Math.max(0, thresholdSeconds - totalCompletedSeconds);
 
-    const paymentRecord = payments.find((p) => p.milestone_number === i);
-
     milestones.push({
       milestoneNumber: i,
       thresholdMinutes,
       thresholdSeconds,
-      milestonePayment: contract.milestone_payment,
+      milestonePayment: cyclePayment,
       cumulativePayment,
       status,
       progressPercentage,
@@ -473,6 +485,7 @@ export function calculateEditingCycles(
   for (let i = 1; i <= totalCyclesCount; i++) {
     const paymentRecord = payments.find((p) => p.milestone_number === i);
     const isPaid = paymentRecord?.payment_status === 'paid' || paymentRecord?.paid === true;
+    const cyclePaymentAmount = Number(paymentRecord?.amount ?? paymentRecord?.earned_amount) || milestonePayment;
 
     cycles.push({
       cycleNumber: i,
@@ -494,12 +507,17 @@ export function calculateEditingCycles(
       status: 'upcoming',
       isEarned: false,
       isPaid,
-      paymentAmount: milestonePayment,
-      actualAmountReceived: paymentRecord?.actual_amount_received ?? (isPaid ? milestonePayment : null),
+      paymentAmount: cyclePaymentAmount,
+      actualAmountReceived: paymentRecord?.actual_amount_received ?? (isPaid ? cyclePaymentAmount : null),
       paymentDate: paymentRecord?.payment_date ?? null,
       paymentRecord,
       contributions: [],
       completedAtDate: null,
+      startDate: null,
+      startDateFormatted: 'Not started',
+      completedAtDateFormatted: 'Locked',
+      durationDays: null,
+      durationLabel: 'Locked',
     });
   }
 
@@ -643,17 +661,98 @@ export function calculateEditingCycles(
     cycle.remainingFormatted = formatSecondsDigital(cycle.remainingSeconds, true);
     cycle.progressPercentage = Math.min(100, (cycle.completedSeconds / cycle.targetSeconds) * 100);
 
+    // Start date for this cycle: first video that contributed
+    let startDate: string | null = null;
+    let startDateFormatted = 'Not started';
+    if (cycle.contributions.length > 0) {
+      startDate = cycle.contributions[0].completionDate || cycle.contributions[0].completedAt || null;
+      if (startDate) {
+        try {
+          const d = new Date(startDate);
+          if (!isNaN(d.getTime())) {
+            startDateFormatted = d.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            });
+          } else {
+            startDateFormatted = startDate;
+          }
+        } catch {
+          startDateFormatted = startDate;
+        }
+      }
+    }
+
+    let completedAtDateFormatted = 'In Progress';
+    let durationDays: number | null = null;
+    let durationLabel = '';
+
     if (cycle.completedSeconds >= cycle.targetSeconds) {
       cycle.status = 'completed';
+      // 90-minute cycle completed = IMMEDIATELY CONSIDERED PAID!
       cycle.isEarned = true;
+      cycle.isPaid = true;
+      cycle.actualAmountReceived = cycle.paymentAmount;
       completedCyclesCount++;
+
+      const compDate = cycle.completedAtDate || (cycle.contributions.length > 0 ? cycle.contributions[cycle.contributions.length - 1].completionDate : null);
+      cycle.completedAtDate = compDate;
+      if (compDate) {
+        try {
+          const d = new Date(compDate);
+          if (!isNaN(d.getTime())) {
+            completedAtDateFormatted = d.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            });
+          } else {
+            completedAtDateFormatted = compDate;
+          }
+        } catch {
+          completedAtDateFormatted = compDate;
+        }
+      }
+
+      if (startDate && compDate) {
+        const startMs = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00Z`).getTime();
+        const endMs = new Date(compDate.includes('T') ? compDate : `${compDate}T00:00:00Z`).getTime();
+        const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+        durationDays = Math.max(1, Math.abs(diffDays) === 0 ? 1 : Math.abs(diffDays));
+        durationLabel = `${durationDays} day${durationDays === 1 ? '' : 's'}`;
+      } else {
+        durationDays = 1;
+        durationLabel = '1 day';
+      }
     } else if (cycle.completedSeconds > 0) {
       cycle.status = 'in_progress';
       cycle.isEarned = false;
+      cycle.isPaid = false;
+      completedAtDateFormatted = 'In Progress';
+
+      if (startDate) {
+        const startMs = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00Z`).getTime();
+        const nowMs = new Date().getTime();
+        const diffDays = Math.max(1, Math.round((nowMs - startMs) / (1000 * 60 * 60 * 24)));
+        durationDays = diffDays;
+        durationLabel = `In Progress — ${diffDays} day${diffDays === 1 ? '' : 's'} elapsed`;
+      } else {
+        durationLabel = 'In Progress';
+      }
     } else {
       cycle.status = 'upcoming';
       cycle.isEarned = false;
+      cycle.isPaid = false;
+      completedAtDateFormatted = 'Locked';
+      durationLabel = 'Locked';
     }
+
+    cycle.startDate = startDate;
+    cycle.startDateFormatted = startDateFormatted;
+    cycle.completedAtDateFormatted = completedAtDateFormatted;
+    cycle.durationDays = durationDays;
+    cycle.durationLabel = durationLabel;
   }
 
   const allCompletedCycles = cycles.filter((c) => c.status === 'completed');
@@ -669,14 +768,15 @@ export function calculateEditingCycles(
 
   const upcomingCycles = cycles.filter((c) => c.status === 'upcoming');
 
-  const totalEarnedAmount = Math.min(
-    totalContractValue,
-    completedCyclesCount * milestonePayment
-  );
+  // Total Contract Value = sum of all cycles' individual payment amounts
+  const dynamicTotalContractValue = cycles.reduce((sum, c) => sum + (c.paymentAmount || milestonePayment), 0);
 
+  // Total Paid Amount = sum of completed cycles' payment amounts
   const totalPaidAmount = cycles
-    .filter((c) => c.isPaid)
-    .reduce((sum, c) => sum + (c.actualAmountReceived ?? c.paymentAmount), 0);
+    .filter((c) => c.status === 'completed')
+    .reduce((sum, c) => sum + (c.paymentAmount || milestonePayment), 0);
+
+  const totalEarnedAmount = totalPaidAmount;
 
   const contractProgressPercentage = Math.min(
     100,
@@ -685,7 +785,7 @@ export function calculateEditingCycles(
 
   const isContractCompleted = completedCyclesCount >= totalCyclesCount;
   const remainingRuntimeMinutes = Math.max(0, (totalRequiredSeconds - totalCompletedSecondsAcrossContract) / 60);
-  const remainingContractValue = Math.max(0, totalContractValue - totalEarnedAmount);
+  const remainingContractValue = Math.max(0, dynamicTotalContractValue - totalPaidAmount);
 
   return {
     cycles,

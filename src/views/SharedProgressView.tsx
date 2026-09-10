@@ -537,9 +537,9 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
             {/* Financial Summary Line */}
             <div className="flex items-center justify-between text-xs pt-1 text-[#94A3B8]">
-              <span>Total Contract Earnings:</span>
+              <span>Total Paid to Date:</span>
               <span className="font-extrabold text-slate-100 text-sm font-mono">
-                {formatCurrency(totalEarnedAmount)}{' '}
+                {formatCurrency(totalPaidAmount)}{' '}
                 <span className="text-[#94A3B8] font-normal">/ {formatCurrency(reportContract.total_contract_value)}</span>
               </span>
             </div>
@@ -560,9 +560,9 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
               </span>
             </div>
             <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Total Earned</span>
+              <span className="text-[#94A3B8] text-[11px] block">Total Paid</span>
               <span className="font-bold text-emerald-400 font-mono text-sm mt-0.5 block">
-                {formatCurrency(totalEarnedAmount)}
+                {formatCurrency(totalPaidAmount)}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-[#1A1D26] border border-[#262B36]">
@@ -853,10 +853,10 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
             </div>
             <div className="flex items-center gap-2 text-xs">
               <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-semibold">
-                Earned: {formatCurrency(totalEarnedAmount)}
+                Total Paid: {formatCurrency(totalPaidAmount)}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-[#222631] border border-[#262B36] text-[#94A3B8] font-mono font-semibold">
-                Paid: {formatCurrency(totalPaidAmount)}
+                Completed: {completedCyclesCount} / {totalCyclesCount} Cycles
               </span>
             </div>
           </div>
@@ -1184,16 +1184,16 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Total Earned</span>
+              <span className="text-[#94A3B8] text-[11px] block">Total Paid</span>
               <span className="font-bold text-emerald-400 font-mono text-base mt-1 block">
-                {formatCurrency(totalEarnedAmount)}
+                {formatCurrency(totalPaidAmount)}
               </span>
             </div>
 
             <div className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36]">
-              <span className="text-[#94A3B8] text-[11px] block">Total Paid</span>
+              <span className="text-[#94A3B8] text-[11px] block">Contract Value</span>
               <span className="font-bold text-slate-100 font-mono text-base mt-1 block">
-                {formatCurrency(totalPaidAmount)}
+                {formatCurrency(reportContract.total_contract_value)}
               </span>
             </div>
 

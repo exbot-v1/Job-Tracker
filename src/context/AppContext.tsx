@@ -6,6 +6,7 @@ import {
   PaymentRecord,
   ContractProgress,
   MilestoneInfo,
+  EditingCyclesSummary,
   MonthlyStat,
   AnalyticsData,
   ToastMessage,
@@ -15,6 +16,7 @@ import {
 import {
   calculateContractProgress,
   calculateMilestones,
+  calculateEditingCycles,
   calculateMonthlyStats,
   calculateAnalytics,
   calculateMonthlyPace,
@@ -50,6 +52,7 @@ interface AppContextType {
   // Computed & Derived Metrics
   progress: ContractProgress;
   milestones: MilestoneInfo[];
+  editingCyclesSummary: EditingCyclesSummary;
   monthlyStats: MonthlyStat[];
   analytics: AnalyticsData;
   currentMonthPace: ReturnType<typeof calculateMonthlyPace>;
@@ -414,11 +417,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Computed Values using exact contract rules
   const progress = useMemo(() => {
-    return calculateContractProgress(videos, contract);
-  }, [videos, contract]);
+    return calculateContractProgress(videos, contract, payments);
+  }, [videos, contract, payments]);
 
   const milestones = useMemo(() => {
     return calculateMilestones(videos, contract, payments);
+  }, [videos, contract, payments]);
+
+  const editingCyclesSummary = useMemo(() => {
+    return calculateEditingCycles(videos, contract, payments);
   }, [videos, contract, payments]);
 
   const monthlyStats = useMemo(() => {
@@ -627,6 +634,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!user?.id) return false;
 
       const thresholdMinutes = milestoneNumber * contract.milestone_minutes;
+      const paymentAmount = Number(data.amount ?? data.earned_amount) || contract.milestone_payment;
       const isPaid = data.payment_status === 'paid' || data.paid === true;
 
       if (isSupabaseConfigured && supabase) {
@@ -636,13 +644,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             user_id: user.id,
             milestone_number: milestoneNumber,
             runtime_threshold_minutes: thresholdMinutes,
-            amount: contract.milestone_payment,
+            amount: paymentAmount,
             earned: data.earned ?? true,
             earned_at: data.earned_at || new Date().toISOString(),
             paid: isPaid,
             paid_at: isPaid ? (data.paid_at || new Date().toISOString()) : null,
             payment_date: data.payment_date || new Date().toISOString().split('T')[0],
-            actual_amount_received: data.actual_amount_received ?? contract.milestone_payment,
+            actual_amount_received: data.actual_amount_received ?? paymentAmount,
             notes: data.notes || null,
             updated_at: new Date().toISOString(),
           };
@@ -1119,6 +1127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments,
       progress,
       milestones,
+      editingCyclesSummary,
       monthlyStats,
       analytics,
       currentMonthPace,
@@ -1162,6 +1171,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments,
       progress,
       milestones,
+      editingCyclesSummary,
       monthlyStats,
       analytics,
       currentMonthPace,

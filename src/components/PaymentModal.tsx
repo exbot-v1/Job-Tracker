@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { MilestoneInfo } from '../types';
+import { MilestoneInfo, EditingCycle } from '../types';
 import {
   X,
   CheckCircle2,
@@ -12,40 +12,47 @@ import {
 import { formatCurrency } from '../lib/calculations';
 
 interface PaymentModalProps {
-  milestone: MilestoneInfo | null;
+  cycle?: EditingCycle | null;
+  milestone?: MilestoneInfo | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, onClose }) => {
+export const PaymentModal: React.FC<PaymentModalProps> = ({ cycle, milestone, isOpen, onClose }) => {
   const { updatePayment, contract } = useApp();
+
+  const activeItem = cycle || milestone;
+  const cycleNumber = cycle?.cycleNumber ?? milestone?.milestoneNumber ?? 1;
+  const standardAmount = cycle?.paymentAmount ?? milestone?.milestonePayment ?? contract.milestone_payment;
+  const paymentRecord = cycle?.paymentRecord ?? milestone?.paymentRecord;
 
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid'>('paid');
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [actualAmount, setActualAmount] = useState<number>(25000);
+  const [actualAmount, setActualAmount] = useState<number>(standardAmount);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (milestone) {
-      const rec = milestone.paymentRecord;
-      setPaymentStatus(rec?.payment_status || 'paid');
-      setPaymentDate(rec?.payment_date || new Date().toISOString().split('T')[0]);
-      setActualAmount(rec?.actual_amount_received ?? contract.milestone_payment);
+    if (activeItem) {
+      const rec = paymentRecord;
+      setPaymentStatus(rec?.payment_status || (cycle ? (cycle.isPaid ? 'paid' : 'pending') : 'paid'));
+      setPaymentDate(rec?.payment_date || cycle?.completedAtDate || new Date().toISOString().split('T')[0]);
+      setActualAmount(rec?.actual_amount_received ?? standardAmount);
       setNotes(rec?.notes || '');
     }
-  }, [milestone, contract]);
+  }, [activeItem, paymentRecord, cycle, standardAmount]);
 
-  if (!isOpen || !milestone) return null;
+  if (!isOpen || !activeItem) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await updatePayment(milestone.milestoneNumber, {
+      await updatePayment(cycleNumber, {
         payment_status: paymentStatus,
         payment_date: paymentStatus === 'paid' ? paymentDate : null,
         actual_amount_received: paymentStatus === 'paid' ? actualAmount : null,
+        amount: standardAmount,
         notes: notes.trim() || null,
       });
       onClose();
@@ -75,10 +82,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, o
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-100">
-                Milestone #{milestone.milestoneNumber} Payment
+                Cycle #{cycleNumber} Payment Details
               </h3>
               <p className="text-xs text-slate-400">
-                Earned: {formatCurrency(milestone.milestonePayment)} ({milestone.thresholdMinutes} min threshold)
+                Cycle Rate: {formatCurrency(standardAmount)} • 90-Minute Milestone
               </p>
             </div>
           </div>
@@ -118,7 +125,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, o
                 }`}
               >
                 <AlertCircle className="w-4 h-4 text-amber-400" />
-                <span>Pending Clearance</span>
+                <span>Pending Payment</span>
               </button>
             </div>
           </div>
@@ -127,7 +134,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, o
             <>
               {/* Payment Date */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Payment Received Date</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Payment Date</label>
                 <div className="relative">
                   <input
                     type="date"
@@ -143,12 +150,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, o
               {/* Actual Amount Received */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Actual Amount Received (৳)
+                  Actual Amount Received ({contract.currency || '$'})
                 </label>
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  step="any"
                   required
                   value={actualAmount}
                   onChange={(e) => setActualAmount(Number(e.target.value))}
@@ -160,10 +167,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ milestone, isOpen, o
 
           {/* Payment Notes */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Payment Notes</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Payment Method &amp; Notes
+            </label>
             <textarea
               rows={2}
-              placeholder="e.g. Bank transfer reference #BK83910, bKash / Nagad confirmation, invoice status..."
+              placeholder="e.g. Bank Transfer, PayPal transaction ID, client confirmation..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors resize-none"

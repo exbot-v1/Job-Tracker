@@ -5,17 +5,13 @@ import {
   Film,
   Plus,
   Search,
-  SlidersHorizontal,
   Calendar,
-  Clock,
-  Youtube,
-  ExternalLink,
   Edit2,
   Trash2,
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
-  Filter,
+  Clock,
 } from 'lucide-react';
 import {
   formatSecondsDigital,
@@ -23,10 +19,163 @@ import {
   formatMinutesDisplay,
 } from '../lib/calculations';
 import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
+import { useYouTubeMetadata } from '../lib/youtube';
 import { EditVideoModal } from '../components/EditVideoModal';
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 
 type SortOption = 'newest' | 'oldest' | 'longest' | 'shortest' | 'title';
+
+const VideoTableRow: React.FC<{
+  video: Video;
+  onEdit: (video: Video) => void;
+  onDelete: (video: Video) => void;
+}> = ({ video, onEdit, onDelete }) => {
+  const { metadata } = useYouTubeMetadata(video.youtube_url);
+  const date = new Date(video.completion_date);
+  const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+  return (
+    <tr key={video.id} className="hover:bg-slate-800/30 transition-colors group">
+      <td className="py-2.5 px-4">
+        <YouTubeThumbnail
+          youtubeUrl={video.youtube_url}
+          title={metadata?.title || video.title}
+          className="w-16 h-10 rounded-md"
+          showPlayBadge={Boolean(video.youtube_url)}
+        />
+      </td>
+
+      <td className="py-3.5 px-4">
+        <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
+          {video.title}
+        </div>
+        {metadata?.title && metadata.title.toLowerCase() !== video.title.toLowerCase() && (
+          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5 truncate max-w-md">
+            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 leading-none">
+              YouTube
+            </span>
+            <span className="truncate">{metadata.title}</span>
+          </div>
+        )}
+        {video.notes && (
+          <div className="text-[11px] text-slate-400 truncate max-w-md mt-0.5 font-normal">
+            {video.notes}
+          </div>
+        )}
+      </td>
+
+      <td className="py-3.5 px-4 font-mono">
+        <span className="font-bold text-slate-200">
+          {formatSecondsDigital(video.duration_seconds, true)}
+        </span>
+        <span className="text-[11px] text-slate-400 ml-1.5">
+          ({formatSecondsHuman(video.duration_seconds)})
+        </span>
+      </td>
+
+      <td className="py-3.5 px-4 text-slate-300 font-mono">
+        {video.completion_date}
+      </td>
+
+      <td className="py-3.5 px-4">
+        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium text-[11px]">
+          {monthName}
+        </span>
+      </td>
+
+      <td className="py-3.5 px-4 text-right">
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => onEdit(video)}
+            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Edit Video"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(video)}
+            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+            title="Delete Video"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
+
+const VideoMobileCard: React.FC<{
+  video: Video;
+  onEdit: (video: Video) => void;
+  onDelete: (video: Video) => void;
+}> = ({ video, onEdit, onDelete }) => {
+  const { metadata } = useYouTubeMetadata(video.youtube_url);
+
+  return (
+    <div
+      key={video.id}
+      className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"
+    >
+      <div className="flex items-start gap-3">
+        <YouTubeThumbnail
+          youtubeUrl={video.youtube_url}
+          title={metadata?.title || video.title}
+          className="w-20 h-13 rounded-lg shrink-0"
+          showPlayBadge={Boolean(video.youtube_url)}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-100 truncate">{video.title}</h3>
+              {metadata?.title && metadata.title.toLowerCase() !== video.title.toLowerCase() && (
+                <p className="text-[11px] text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                  <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 leading-none shrink-0">
+                    YT
+                  </span>
+                  <span className="truncate">{metadata.title}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => onEdit(video)}
+                className="p-1.5 text-slate-400 hover:text-slate-200 bg-slate-800 rounded-lg"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onDelete(video)}
+                className="p-1.5 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950 p-2.5 rounded-xl font-mono">
+        <div>
+          <span className="text-slate-400 block text-[10px]">Runtime:</span>
+          <span className="font-bold text-slate-200">
+            {formatSecondsDigital(video.duration_seconds, true)}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-400 block text-[10px]">Completed:</span>
+          <span className="text-slate-300">{video.completion_date}</span>
+        </div>
+      </div>
+
+      {video.notes && (
+        <p className="text-xs text-slate-400 italic bg-slate-950/40 p-2 rounded-lg">
+          "{video.notes}"
+        </p>
+      )}
+    </div>
+  );
+};
 
 export const VideosView: React.FC = () => {
   const {
@@ -257,94 +406,18 @@ export const VideosView: React.FC = () => {
                   <th className="py-3.5 px-4 font-mono">Runtime</th>
                   <th className="py-3.5 px-4">Completion Date</th>
                   <th className="py-3.5 px-4">Month</th>
-                  <th className="py-3.5 px-4">YouTube</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
-                {paginatedVideos.map((video) => {
-                  const date = new Date(video.completion_date);
-                  const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-
-                  return (
-                    <tr key={video.id} className="hover:bg-slate-800/30 transition-colors group">
-                      <td className="py-2.5 px-4">
-                        <YouTubeThumbnail
-                          youtubeUrl={video.youtube_url}
-                          title={video.title}
-                          className="w-16 h-10 rounded-md"
-                          showPlayBadge={Boolean(video.youtube_url)}
-                        />
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
-                          {video.title}
-                        </div>
-                        {video.notes && (
-                          <div className="text-[11px] text-slate-400 truncate max-w-md mt-0.5 font-normal">
-                            {video.notes}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 font-mono">
-                        <span className="font-bold text-slate-200">
-                          {formatSecondsDigital(video.duration_seconds, true)}
-                        </span>
-                        <span className="text-[11px] text-slate-400 ml-1.5">
-                          ({formatSecondsHuman(video.duration_seconds)})
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-slate-300 font-mono">
-                        {video.completion_date}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium text-[11px]">
-                          {monthName}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        {video.youtube_url ? (
-                          <a
-                            href={video.youtube_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-rose-400 hover:text-rose-300 font-semibold transition-colors"
-                          >
-                            <Youtube className="w-3.5 h-3.5" />
-                            <span>Watch</span>
-                            <ExternalLink className="w-3 h-3 opacity-70" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">No link</span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setEditingVideo(video)}
-                            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Edit Video"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeletingVideo(video)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Delete Video"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {paginatedVideos.map((video) => (
+                  <VideoTableRow
+                    key={video.id}
+                    video={video}
+                    onEdit={setEditingVideo}
+                    onDelete={setDeletingVideo}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -352,74 +425,12 @@ export const VideosView: React.FC = () => {
           {/* Mobile Cards View */}
           <div className="md:hidden space-y-3">
             {paginatedVideos.map((video) => (
-              <div
+              <VideoMobileCard
                 key={video.id}
-                className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"
-              >
-                <div className="flex items-start gap-3">
-                  <YouTubeThumbnail
-                    youtubeUrl={video.youtube_url}
-                    title={video.title}
-                    className="w-20 h-13 rounded-lg shrink-0"
-                    showPlayBadge={Boolean(video.youtube_url)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-bold text-slate-100 truncate">{video.title}</h3>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => setEditingVideo(video)}
-                          className="p-1.5 text-slate-400 hover:text-slate-200 bg-slate-800 rounded-lg"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingVideo(video)}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-lg"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950 p-2.5 rounded-xl font-mono">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Runtime:</span>
-                    <span className="font-bold text-slate-200">
-                      {formatSecondsDigital(video.duration_seconds, true)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Completed:</span>
-                    <span className="text-slate-300">{video.completion_date}</span>
-                  </div>
-                </div>
-
-                {video.notes && (
-                  <p className="text-xs text-slate-400 italic bg-slate-950/40 p-2 rounded-lg">
-                    "{video.notes}"
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between pt-1 text-xs">
-                  {video.youtube_url ? (
-                    <a
-                      href={video.youtube_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-rose-400 font-semibold"
-                    >
-                      <Youtube className="w-4 h-4" />
-                      <span>Watch on YouTube</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : (
-                    <span className="text-slate-400 text-[11px]">No YouTube link</span>
-                  )}
-                </div>
-              </div>
+                video={video}
+                onEdit={setEditingVideo}
+                onDelete={setDeletingVideo}
+              />
             ))}
           </div>
 
