@@ -19,7 +19,7 @@ import {
   formatMinutesDisplay,
 } from '../lib/calculations';
 import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
-import { useYouTubeMetadata } from '../lib/youtube';
+import { useYouTubeMetadata, getCachedYouTubeTitle } from '../lib/youtube';
 import { EditVideoModal } from '../components/EditVideoModal';
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 
@@ -34,12 +34,15 @@ const VideoTableRow: React.FC<{
   const date = new Date(video.completion_date);
   const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
 
+  // When YouTube link is available, fetch title from YouTube and make it the only title visible on the video.
+  const displayTitle = (video.youtube_url && metadata?.title) ? metadata.title : video.title;
+
   return (
     <tr key={video.id} className="hover:bg-slate-800/30 transition-colors group">
       <td className="py-2.5 px-4">
         <YouTubeThumbnail
           youtubeUrl={video.youtube_url}
-          title={metadata?.title || video.title}
+          title={displayTitle}
           className="w-16 h-10 rounded-md"
           showPlayBadge={Boolean(video.youtube_url)}
         />
@@ -47,16 +50,8 @@ const VideoTableRow: React.FC<{
 
       <td className="py-3.5 px-4">
         <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
-          {video.title}
+          {displayTitle}
         </div>
-        {metadata?.title && metadata.title.toLowerCase() !== video.title.toLowerCase() && (
-          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5 truncate max-w-md">
-            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 leading-none">
-              YouTube
-            </span>
-            <span className="truncate">{metadata.title}</span>
-          </div>
-        )}
         {video.notes && (
           <div className="text-[11px] text-slate-400 truncate max-w-md mt-0.5 font-normal">
             {video.notes}
@@ -111,6 +106,7 @@ const VideoMobileCard: React.FC<{
   onDelete: (video: Video) => void;
 }> = ({ video, onEdit, onDelete }) => {
   const { metadata } = useYouTubeMetadata(video.youtube_url);
+  const displayTitle = (video.youtube_url && metadata?.title) ? metadata.title : video.title;
 
   return (
     <div
@@ -120,20 +116,17 @@ const VideoMobileCard: React.FC<{
       <div className="flex items-start gap-3">
         <YouTubeThumbnail
           youtubeUrl={video.youtube_url}
-          title={metadata?.title || video.title}
+          title={displayTitle}
           className="w-20 h-13 rounded-lg shrink-0"
           showPlayBadge={Boolean(video.youtube_url)}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-100 truncate">{video.title}</h3>
-              {metadata?.title && metadata.title.toLowerCase() !== video.title.toLowerCase() && (
-                <p className="text-[11px] text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                  <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 leading-none shrink-0">
-                    YT
-                  </span>
-                  <span className="truncate">{metadata.title}</span>
+              <h3 className="text-sm font-bold text-slate-100 truncate">{displayTitle}</h3>
+              {video.notes && (
+                <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal">
+                  {video.notes}
                 </p>
               )}
             </div>
@@ -212,7 +205,10 @@ export const VideosView: React.FC = () => {
         // Search query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const matchesTitle = video.title.toLowerCase().includes(q);
+          const ytTitle = getCachedYouTubeTitle(video.youtube_url);
+          const matchesTitle =
+            video.title.toLowerCase().includes(q) ||
+            (ytTitle ? ytTitle.toLowerCase().includes(q) : false);
           const matchesNotes = video.notes?.toLowerCase().includes(q) || false;
           if (!matchesTitle && !matchesNotes) return false;
         }
@@ -241,7 +237,11 @@ export const VideosView: React.FC = () => {
         if (sortBy === 'oldest') return a.completion_date.localeCompare(b.completion_date);
         if (sortBy === 'longest') return b.duration_seconds - a.duration_seconds;
         if (sortBy === 'shortest') return a.duration_seconds - b.duration_seconds;
-        if (sortBy === 'title') return a.title.localeCompare(b.title);
+        if (sortBy === 'title') {
+          const titleA = (a.youtube_url && getCachedYouTubeTitle(a.youtube_url)) || a.title;
+          const titleB = (b.youtube_url && getCachedYouTubeTitle(b.youtube_url)) || b.title;
+          return titleA.localeCompare(titleB);
+        }
         return 0;
       });
   }, [videos, searchQuery, selectedMonth, durationFilter, sortBy]);

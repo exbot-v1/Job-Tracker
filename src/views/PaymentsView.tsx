@@ -19,6 +19,63 @@ import {
 import { formatCurrency, formatMinutesDisplay } from '../lib/calculations';
 import { PaymentModal } from '../components/PaymentModal';
 import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
+import { useYouTubeMetadata } from '../lib/youtube';
+
+const CycleContributionItem: React.FC<{
+  c: CycleVideoContribution;
+  cycleNumber: number;
+  idx: number;
+}> = ({ c, cycleNumber, idx }) => {
+  const { metadata } = useYouTubeMetadata(c.youtubeUrl);
+  const displayTitle = (c.youtubeUrl && metadata?.title) ? metadata.title : c.videoTitle;
+
+  let contributionDesc = `Full ${c.originalDurationFormatted}`;
+  if (c.carryoverToNextCycleSeconds > 0 && c.countedInPreviousCyclesSeconds > 0) {
+    contributionDesc = `Split: ${c.contributionFormatted} used here (${c.carryoverToNextCycleFormatted} carried over to Cycle ${cycleNumber + 1})`;
+  } else if (c.carryoverToNextCycleSeconds > 0) {
+    contributionDesc = `Split: ${c.contributionFormatted} used here (${c.carryoverToNextCycleFormatted} carried over to Cycle ${cycleNumber + 1})`;
+  } else if (c.isFromPreviousCycle) {
+    contributionDesc = `Carryover: ${c.contributionFormatted} used here (remaining from Cycle ${cycleNumber - 1})`;
+  }
+
+  return (
+    <div
+      key={`${c.videoId}-${idx}`}
+      className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-700 transition-colors"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <YouTubeThumbnail
+          youtubeUrl={c.youtubeUrl}
+          title={displayTitle}
+          className="w-14 h-9 rounded-md shrink-0"
+          showPlayBadge={Boolean(c.youtubeUrl)}
+        />
+        <div className="min-w-0">
+          <div className="font-bold text-xs sm:text-sm text-slate-200 truncate">
+            {displayTitle}
+          </div>
+          <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+            <span>Completed: {c.completionDate}</span>
+            <span>•</span>
+            <span>Total runtime: {c.originalDurationFormatted}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-left sm:text-right shrink-0">
+        <span className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-lg ${
+          c.carryoverToNextCycleSeconds > 0
+            ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+            : c.isFromPreviousCycle
+            ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
+            : 'bg-slate-800 text-slate-200'
+        }`}>
+          {contributionDesc}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const PaymentsView: React.FC = () => {
   const {
@@ -336,55 +393,14 @@ export const PaymentsView: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        {cycle.contributions.map((c, idx) => {
-                          // Build clear contribution label
-                          let contributionDesc = `Full ${c.originalDurationFormatted}`;
-                          if (c.carryoverToNextCycleSeconds > 0 && c.countedInPreviousCyclesSeconds > 0) {
-                            contributionDesc = `Split: ${c.contributionFormatted} used here (${c.carryoverToNextCycleFormatted} carried over to Cycle ${cycle.cycleNumber + 1})`;
-                          } else if (c.carryoverToNextCycleSeconds > 0) {
-                            contributionDesc = `Split: ${c.contributionFormatted} used here (${c.carryoverToNextCycleFormatted} carried over to Cycle ${cycle.cycleNumber + 1})`;
-                          } else if (c.isFromPreviousCycle) {
-                            contributionDesc = `Carryover: ${c.contributionFormatted} used here (remaining from Cycle ${cycle.cycleNumber - 1})`;
-                          }
-
-                          return (
-                            <div
-                              key={`${c.videoId}-${idx}`}
-                              className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-700 transition-colors"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <YouTubeThumbnail
-                                  youtubeUrl={c.youtubeUrl}
-                                  title={c.videoTitle}
-                                  className="w-14 h-9 rounded-md shrink-0"
-                                  showPlayBadge={Boolean(c.youtubeUrl)}
-                                />
-                                <div className="min-w-0">
-                                  <div className="font-bold text-xs sm:text-sm text-slate-200 truncate">
-                                    {c.videoTitle}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                                    <span>Completed: {c.completionDate}</span>
-                                    <span>•</span>
-                                    <span>Total runtime: {c.originalDurationFormatted}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="text-left sm:text-right shrink-0">
-                                <span className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-lg ${
-                                  c.carryoverToNextCycleSeconds > 0
-                                    ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                                    : c.isFromPreviousCycle
-                                    ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
-                                    : 'bg-slate-800 text-slate-200'
-                                }`}>
-                                  {contributionDesc}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {cycle.contributions.map((c, idx) => (
+                          <CycleContributionItem
+                            key={`${c.videoId}-${idx}`}
+                            c={c}
+                            cycleNumber={cycle.cycleNumber}
+                            idx={idx}
+                          />
+                        ))}
                       </div>
                     )}
 

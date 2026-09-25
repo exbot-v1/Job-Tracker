@@ -13,11 +13,95 @@ import {
 } from 'lucide-react';
 import { CurrentEditingPeriodDetails, formatMinutesDisplay, formatSecondsDigital } from '../lib/calculations';
 import { YouTubeThumbnail } from './YouTubeThumbnail';
+import { useYouTubeMetadata } from '../lib/youtube';
 
 interface CurrentEditingActivityProps {
   period: CurrentEditingPeriodDetails;
   onAddVideoClick?: () => void;
 }
+
+const ActivityContributionItem: React.FC<{
+  contrib: CurrentEditingPeriodDetails['contributions'][0];
+  periodCycleNumber: number;
+}> = ({ contrib, periodCycleNumber }) => {
+  const { metadata } = useYouTubeMetadata(contrib.youtubeUrl);
+  const displayTitle = (contrib.youtubeUrl && metadata?.title) ? metadata.title : contrib.videoTitle;
+
+  return (
+    <div
+      key={contrib.videoId}
+      className="p-3.5 sm:p-4 rounded-xl bg-[#111318] border border-[#262B36] hover:border-[#384252] transition-all duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+    >
+      {/* Left: Thumbnail & Details */}
+      <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+        <YouTubeThumbnail
+          youtubeUrl={contrib.youtubeUrl}
+          title={displayTitle}
+          className="w-20 h-13 rounded-lg"
+          showPlayBadge={Boolean(contrib.youtubeUrl)}
+        />
+
+        <div className="min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {contrib.isFromPreviousCycle && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                <CornerDownRight className="w-3 h-3 text-amber-400" />
+                FROM PREVIOUS CYCLE
+              </span>
+            )}
+            <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate max-w-md">
+              {displayTitle}
+            </h4>
+            {contrib.youtubeUrl && (
+              <a
+                href={contrib.youtubeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#94A3B8] hover:text-rose-400 text-xs inline-flex items-center gap-1 transition-colors"
+                title="Watch on YouTube"
+              >
+                <Youtube className="w-3.5 h-3.5 text-rose-500" />
+                <ExternalLink className="w-3 h-3 opacity-60" />
+              </a>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-[#94A3B8] flex-wrap font-mono">
+            <span>Total: <strong className="text-slate-200">{contrib.originalDurationFormatted}</strong></span>
+            <span>•</span>
+            <span>Counted in Period #{periodCycleNumber}: <strong className="text-emerald-400 font-bold">{contrib.contributionFormatted}</strong></span>
+            {contrib.isFromPreviousCycle && contrib.countedInPreviousCyclesSeconds > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-slate-400">({contrib.countedInPreviousCyclesFormatted} in previous cycle)</span>
+              </>
+            )}
+            <span>•</span>
+            <span>Date: <strong className="text-slate-300 font-sans">{contrib.completionDate}</strong></span>
+          </div>
+
+          {/* Boundary Split info if carrying forward to next cycle */}
+          {contrib.carryoverToNextCycleSeconds > 0 && (
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 mt-1">
+              <Info className="w-3 h-3 shrink-0 text-sky-400" />
+              <span>
+                {contrib.contributionFormatted} counted in Period #{periodCycleNumber} • Carryover to Next Cycle: <strong className="font-mono text-sky-300 font-bold">{contrib.carryoverToNextCycleFormatted}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right: Runtime Contribution Tag */}
+      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#262B36]">
+        <span className="text-[11px] text-[#94A3B8] block sm:text-right">Credited to Period:</span>
+        <span className="text-sm font-extrabold text-emerald-400 font-mono">
+          +{contrib.contributionFormatted}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
   period,
@@ -71,82 +155,13 @@ export const CurrentEditingActivity: React.FC<CurrentEditingActivityProps> = ({
         </div>
       ) : (
         <div className="space-y-3">
-          {period.contributions.map((contrib) => {
-            return (
-              <div
-                key={contrib.videoId}
-                className="p-3.5 sm:p-4 rounded-xl bg-[#111318] border border-[#262B36] hover:border-[#384252] transition-all duration-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-              >
-                {/* Left: Thumbnail & Details */}
-                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                  <YouTubeThumbnail
-                    youtubeUrl={contrib.youtubeUrl}
-                    title={contrib.videoTitle}
-                    className="w-20 h-13 rounded-lg"
-                    showPlayBadge={Boolean(contrib.youtubeUrl)}
-                  />
-
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {contrib.isFromPreviousCycle && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                          <CornerDownRight className="w-3 h-3 text-amber-400" />
-                          FROM PREVIOUS CYCLE
-                        </span>
-                      )}
-                      <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate max-w-md">
-                        {contrib.videoTitle}
-                      </h4>
-                      {contrib.youtubeUrl && (
-                        <a
-                          href={contrib.youtubeUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[#94A3B8] hover:text-rose-400 text-xs inline-flex items-center gap-1 transition-colors"
-                          title="Watch on YouTube"
-                        >
-                          <Youtube className="w-3.5 h-3.5 text-rose-500" />
-                          <ExternalLink className="w-3 h-3 opacity-60" />
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3 text-xs text-[#94A3B8] flex-wrap font-mono">
-                      <span>Total: <strong className="text-slate-200">{contrib.originalDurationFormatted}</strong></span>
-                      <span>•</span>
-                      <span>Counted in Period #{period.cycleNumber}: <strong className="text-emerald-400 font-bold">{contrib.contributionFormatted}</strong></span>
-                      {contrib.isFromPreviousCycle && contrib.countedInPreviousCyclesSeconds > 0 && (
-                        <>
-                          <span>•</span>
-                          <span className="text-slate-400">({contrib.countedInPreviousCyclesFormatted} in previous cycle)</span>
-                        </>
-                      )}
-                      <span>•</span>
-                      <span>Date: <strong className="text-slate-300 font-sans">{contrib.completionDate}</strong></span>
-                    </div>
-
-                    {/* Boundary Split info if carrying forward to next cycle */}
-                    {contrib.carryoverToNextCycleSeconds > 0 && (
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 mt-1">
-                        <Info className="w-3 h-3 shrink-0 text-sky-400" />
-                        <span>
-                          {contrib.contributionFormatted} counted in Period #{period.cycleNumber} • Carryover to Next Cycle: <strong className="font-mono text-sky-300 font-bold">{contrib.carryoverToNextCycleFormatted}</strong>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right: Runtime Contribution Tag */}
-                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#262B36]">
-                  <span className="text-[11px] text-[#94A3B8] block sm:text-right">Credited to Period:</span>
-                  <span className="text-sm font-extrabold text-emerald-400 font-mono">
-                    +{contrib.contributionFormatted}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {period.contributions.map((contrib) => (
+            <ActivityContributionItem
+              key={contrib.videoId}
+              contrib={contrib}
+              periodCycleNumber={period.cycleNumber}
+            />
+          ))}
         </div>
       )}
 

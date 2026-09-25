@@ -93,6 +93,32 @@ export async function fetchYouTubeMetadata(url?: string | null): Promise<YouTube
 }
 
 /**
+ * Synchronously retrieves cached YouTube title if available in memory or sessionStorage.
+ */
+export function getCachedYouTubeTitle(url?: string | null): string | null {
+  if (!url) return null;
+  const videoId = extractYouTubeVideoId(url);
+  if (!videoId) return null;
+  const cacheKey = `yt_meta_${videoId}`;
+  if (metadataMemoryCache.has(cacheKey)) {
+    return metadataMemoryCache.get(cacheKey)?.title || null;
+  }
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const item = window.sessionStorage.getItem(cacheKey);
+      if (item) {
+        const parsed = JSON.parse(item);
+        metadataMemoryCache.set(cacheKey, parsed);
+        return parsed?.title || null;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
  * React hook to retrieve YouTube metadata asynchronously with immediate cached return.
  */
 export function useYouTubeMetadata(url?: string | null): {

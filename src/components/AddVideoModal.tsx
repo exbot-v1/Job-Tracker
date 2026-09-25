@@ -17,6 +17,7 @@ import {
   formatCurrency,
   formatSecondsHuman,
 } from '../lib/calculations';
+import { extractYouTubeVideoId, fetchYouTubeMetadata } from '../lib/youtube';
 
 export const AddVideoModal: React.FC = () => {
   const {
@@ -34,9 +35,29 @@ export const AddVideoModal: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingYt, setIsFetchingYt] = useState(false);
 
   // Quick preset helper buttons
   const presets = ['15:00', '24:30', '30:00', '45:00', '01:00:00'];
+
+  const handleFetchYouTubeTitle = async (urlOverride?: string) => {
+    const rawUrl = (urlOverride !== undefined ? urlOverride : youtubeUrl).trim();
+    if (!rawUrl) return;
+    const videoId = extractYouTubeVideoId(rawUrl);
+    if (!videoId) return;
+
+    setIsFetchingYt(true);
+    try {
+      const meta = await fetchYouTubeMetadata(rawUrl);
+      if (meta?.title) {
+        setTitle(meta.title);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsFetchingYt(false);
+    }
+  };
 
   // Live parsed duration
   const parsed = useMemo(() => {
@@ -311,7 +332,18 @@ export const AddVideoModal: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-300">
                 YouTube URL <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
-              <span className="text-[11px] text-slate-400">Can be added or updated later</span>
+              {extractYouTubeVideoId(youtubeUrl) ? (
+                <button
+                  type="button"
+                  onClick={() => handleFetchYouTubeTitle()}
+                  disabled={isFetchingYt}
+                  className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium disabled:opacity-50 transition-colors"
+                >
+                  {isFetchingYt ? 'Fetching title...' : 'Fetch YouTube Title'}
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-400">Can be added or updated later</span>
+              )}
             </div>
             <div className="relative">
               <input
@@ -319,7 +351,18 @@ export const AddVideoModal: React.FC = () => {
                 type="url"
                 placeholder="https://youtube.com/watch?v=..."
                 value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setYoutubeUrl(val);
+                  if (extractYouTubeVideoId(val) && (!title.trim() || title.startsWith('Untitled'))) {
+                    handleFetchYouTubeTitle(val);
+                  }
+                }}
+                onBlur={() => {
+                  if (extractYouTubeVideoId(youtubeUrl) && (!title.trim() || title.startsWith('Untitled'))) {
+                    handleFetchYouTubeTitle();
+                  }
+                }}
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
               />
               <Youtube className="w-4 h-4 text-rose-500 absolute left-3 top-3 pointer-events-none" />

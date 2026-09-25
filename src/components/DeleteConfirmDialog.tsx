@@ -2,6 +2,7 @@ import React from 'react';
 import { Video } from '../types';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { formatSecondsHuman, formatSecondsDigital } from '../lib/calculations';
+import { getCachedYouTubeTitle } from '../lib/youtube';
 
 interface DeleteConfirmDialogProps {
   video: Video | null;
@@ -17,6 +18,8 @@ export const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
   onConfirm,
 }) => {
   if (!isOpen || !video) return null;
+
+  const displayTitle = (video.youtube_url && getCachedYouTubeTitle(video.youtube_url)) || video.title;
 
   return (
     <div
@@ -37,7 +40,7 @@ export const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
           <h3 className="text-base font-bold text-slate-100 mb-2">Delete this completed video?</h3>
           
           <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 mb-4 text-xs">
-            <p className="font-semibold text-slate-200">{video.title}</p>
+            <p className="font-semibold text-slate-200">{displayTitle}</p>
             <p className="text-slate-400 font-mono mt-1">
               Runtime: {formatSecondsDigital(video.duration_seconds, true)} ({formatSecondsHuman(video.duration_seconds)}) • Date: {video.completion_date}
             </p>

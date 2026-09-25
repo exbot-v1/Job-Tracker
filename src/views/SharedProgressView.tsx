@@ -31,9 +31,155 @@ import {
 } from '../lib/calculations';
 import { CircularProgress } from '../components/CircularProgress';
 import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
+import { useYouTubeMetadata } from '../lib/youtube';
 import { Contract, Video, PaymentRecord, ShareLink, EditingCycle, CycleVideoContribution } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { DEFAULT_CONTRACT } from '../lib/sampleData';
+
+const SharedContributionCard: React.FC<{
+  c: CycleVideoContribution;
+  idx: number;
+}> = ({ c, idx }) => {
+  const { metadata } = useYouTubeMetadata(c.youtubeUrl);
+  const displayTitle = (c.youtubeUrl && metadata?.title) ? metadata.title : c.videoTitle;
+
+  return (
+    <div
+      key={`${c.videoId}-${c.contributionSeconds}-${idx}`}
+      className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#333A4A] transition-colors"
+    >
+      <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+        <YouTubeThumbnail
+          youtubeUrl={c.youtubeUrl}
+          title={displayTitle}
+          className="w-16 h-11 rounded-lg shrink-0"
+          showPlayBadge={Boolean(c.youtubeUrl)}
+        />
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-100 text-sm truncate max-w-md">
+              {displayTitle}
+            </span>
+            {c.isFromPreviousCycle && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                <CornerDownRight className="w-3 h-3 text-amber-400" />
+                FROM PREVIOUS CYCLE
+              </span>
+            )}
+            {c.isPartialContribution && !c.isFromPreviousCycle ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                Split at 90:00 boundary
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-3 text-[11px] sm:text-xs text-[#94A3B8] flex-wrap font-mono">
+            <span>Total: <strong className="text-slate-200">{c.originalDurationFormatted}</strong></span>
+            <span>•</span>
+            <span>Counted in current period: <strong className="text-emerald-400 font-bold">{c.contributionFormatted}</strong></span>
+            {c.isFromPreviousCycle && c.countedInPreviousCyclesSeconds > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-slate-400 font-sans">({c.countedInPreviousCyclesFormatted} in previous cycle)</span>
+              </>
+            )}
+            {c.carryoverToNextCycleSeconds > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-sky-300 font-sans">Carryover to Next Cycle: <strong className="font-mono font-bold">{c.carryoverToNextCycleFormatted}</strong></span>
+              </>
+            )}
+            <span>•</span>
+            <span className="font-sans">Date: <strong className="text-slate-300">{c.completionDate}</strong></span>
+            {c.notes && (
+              <>
+                <span>•</span>
+                <span className="text-[#64748B] italic truncate max-w-xs font-sans">{c.notes}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#262B36]/60">
+        <div className="text-left sm:text-right">
+          <span className="text-[10px] uppercase tracking-wider text-[#94A3B8] block">Counted in Cycle</span>
+          <span className="font-mono font-black text-emerald-400 text-sm">
+            +{c.contributionFormatted}
+          </span>
+        </div>
+
+        {c.youtubeUrl ? (
+          <a
+            href={c.youtubeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/30 transition-colors"
+          >
+            <span>Watch</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+const SharedReportVideoRow: React.FC<{
+  video: Video;
+  idx: number;
+  total: number;
+}> = ({ video, idx, total }) => {
+  const { metadata } = useYouTubeMetadata(video.youtube_url);
+  const displayTitle = (video.youtube_url && metadata?.title) ? metadata.title : video.title;
+
+  return (
+    <tr key={video.id} className="hover:bg-[#1A1D26]/50 transition-colors">
+      <td className="py-3 pr-4 text-[#64748B] font-mono text-[11px]">
+        {total - idx}
+      </td>
+      <td className="py-2.5 pr-4">
+        <YouTubeThumbnail
+          youtubeUrl={video.youtube_url}
+          title={displayTitle}
+          className="w-14 h-9 rounded-md"
+          showPlayBadge={Boolean(video.youtube_url)}
+        />
+      </td>
+      <td className="py-3 pr-4 font-semibold text-slate-200 max-w-xs sm:max-w-md">
+        <div className="truncate">{displayTitle}</div>
+        {video.notes && (
+          <div className="text-[11px] text-[#64748B] truncate font-normal mt-0.5">
+            {video.notes}
+          </div>
+        )}
+      </td>
+      <td className="py-3 pr-4 font-mono font-bold text-slate-200 whitespace-nowrap">
+        {formatSecondsDigital(video.duration_seconds, true)}
+        <span className="text-[11px] text-[#94A3B8] font-normal ml-1.5">
+          ({formatMinutesDisplay(video.duration_seconds / 60)})
+        </span>
+      </td>
+      <td className="py-3 pr-4 text-[#94A3B8] font-mono whitespace-nowrap">
+        {video.completion_date}
+      </td>
+      <td className="py-3 text-right whitespace-nowrap">
+        {video.youtube_url ? (
+          <a
+            href={video.youtube_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-semibold text-xs hover:underline"
+          >
+            <span>Watch</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <span className="text-[#64748B] text-xs">—</span>
+        )}
+      </td>
+    </tr>
+  );
+};
 
 interface SharedProgressViewProps {
   token: string;
@@ -338,85 +484,7 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
   // Helper renderer for video contribution items
   const renderContributionCard = (c: CycleVideoContribution, idx: number) => (
-    <div
-      key={`${c.videoId}-${c.contributionSeconds}-${idx}`}
-      className="p-4 rounded-xl bg-[#1A1D26] border border-[#262B36] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#333A4A] transition-colors"
-    >
-      <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-        <YouTubeThumbnail
-          youtubeUrl={c.youtubeUrl}
-          title={c.videoTitle}
-          className="w-16 h-11 rounded-lg shrink-0"
-          showPlayBadge={Boolean(c.youtubeUrl)}
-        />
-        <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-slate-100 text-sm truncate max-w-md">
-              {c.videoTitle}
-            </span>
-            {c.isFromPreviousCycle && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
-                <CornerDownRight className="w-3 h-3 text-amber-400" />
-                FROM PREVIOUS CYCLE
-              </span>
-            )}
-            {c.isPartialContribution && !c.isFromPreviousCycle ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                Split at 90:00 boundary
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-3 text-[11px] sm:text-xs text-[#94A3B8] flex-wrap font-mono">
-            <span>Total: <strong className="text-slate-200">{c.originalDurationFormatted}</strong></span>
-            <span>•</span>
-            <span>Counted in current period: <strong className="text-emerald-400 font-bold">{c.contributionFormatted}</strong></span>
-            {c.isFromPreviousCycle && c.countedInPreviousCyclesSeconds > 0 && (
-              <>
-                <span>•</span>
-                <span className="text-slate-400 font-sans">({c.countedInPreviousCyclesFormatted} in previous cycle)</span>
-              </>
-            )}
-            {c.carryoverToNextCycleSeconds > 0 && (
-              <>
-                <span>•</span>
-                <span className="text-sky-300 font-sans">Carryover to Next Cycle: <strong className="font-mono font-bold">{c.carryoverToNextCycleFormatted}</strong></span>
-              </>
-            )}
-            <span>•</span>
-            <span className="font-sans">Date: <strong className="text-slate-300">{c.completionDate}</strong></span>
-            {c.notes && (
-              <>
-                <span>•</span>
-                <span className="text-[#64748B] italic truncate max-w-xs font-sans">{c.notes}</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#262B36]/60">
-        <div className="text-left sm:text-right">
-          <span className="text-[10px] uppercase tracking-wider text-[#94A3B8] block">Counted in Cycle</span>
-          <span className="font-mono font-black text-emerald-400 text-sm">
-            {c.contributionFormatted}
-          </span>
-        </div>
-
-        {c.youtubeUrl ? (
-          <a
-            href={c.youtubeUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/30 transition-colors"
-          >
-            <span>Watch</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        ) : (
-          <span className="text-[11px] text-[#64748B] italic">No URL</span>
-        )}
-      </div>
-    </div>
+    <SharedContributionCard key={`${c.videoId}-${c.contributionSeconds}-${idx}`} c={c} idx={idx} />
   );
 
   return (
@@ -1021,53 +1089,12 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-[#262B36]/60">
                   {reportVideos.map((video, idx) => (
-                    <tr key={video.id} className="hover:bg-[#1A1D26]/50 transition-colors">
-                      <td className="py-3 pr-4 text-[#64748B] font-mono text-[11px]">
-                        {reportVideos.length - idx}
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        <YouTubeThumbnail
-                          youtubeUrl={video.youtube_url}
-                          title={video.title}
-                          className="w-14 h-9 rounded-md"
-                          showPlayBadge={Boolean(video.youtube_url)}
-                        />
-                      </td>
-                      <td className="py-3 pr-4 font-semibold text-slate-200 max-w-xs sm:max-w-md">
-                        <div className="truncate">{video.title}</div>
-                        {video.notes && (
-                          <div className="text-[11px] text-[#64748B] truncate font-normal mt-0.5">
-                            {video.notes}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4 font-mono font-bold text-slate-200 whitespace-nowrap">
-                        {formatSecondsDigital(video.duration_seconds, true)}
-                        <span className="text-[11px] text-[#94A3B8] font-normal ml-1.5">
-                          ({formatMinutesDisplay(video.duration_seconds / 60)})
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4 text-[#94A3B8] font-mono whitespace-nowrap">
-                        {video.completion_date}
-                      </td>
-                      <td className="py-3 text-right whitespace-nowrap">
-                        {video.youtube_url ? (
-                          <a
-                            href={video.youtube_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-semibold text-xs hover:underline"
-                          >
-                            <span>Watch</span>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        ) : (
-                          <span className="text-[#64748B] text-[11px]">
-                            No link
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                    <SharedReportVideoRow
+                      key={video.id}
+                      video={video}
+                      idx={idx}
+                      total={reportVideos.length}
+                    />
                   ))}
                 </tbody>
               </table>
