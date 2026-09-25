@@ -188,7 +188,7 @@ export const MilestonesView: React.FC = () => {
                     </span>
                   ) : isCurrent ? (
                     <span className="text-sky-300 font-medium">
-                      {formatMinutesDisplay(m.remainingMinutes)} ({formatSecondsDigital(m.remainingSeconds, false)}) needed to unlock this ৳25,000 payment.
+                      {formatMinutesDisplay(m.remainingMinutes)} ({formatSecondsDigital(m.remainingSeconds, false)}) needed to unlock this {formatCurrency(m.milestonePayment)} payment.
                     </span>
                   ) : (
                     <span>

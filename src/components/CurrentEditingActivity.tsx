@@ -5,7 +5,6 @@ import {
   Clock,
   Sparkles,
   ExternalLink,
-  Youtube,
   ArrowRight,
   Info,
   CheckCircle2,

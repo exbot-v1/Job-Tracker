@@ -257,14 +257,16 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
           if (!rpcError && rpcData && rpcData.contract) {
             if (isMounted) {
+              const rawMilestone = Number(rpcData.contract.milestone_amount);
+              const rawTotal = Number(rpcData.contract.total_contract_amount);
               const contractObj: Contract = {
                 id: rpcData.contract.id,
                 user_id: '',
                 name: rpcData.contract.title || 'Video Editing Contract',
                 monthly_reference_minutes: rpcData.contract.monthly_reference_minutes || 90,
                 milestone_minutes: rpcData.contract.milestone_runtime_minutes || 90,
-                milestone_payment: Number(rpcData.contract.milestone_amount) || 25000,
-                total_contract_value: Number(rpcData.contract.total_contract_amount) || 150000,
+                milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
+                total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
                 total_required_minutes: rpcData.contract.total_runtime_minutes || 540,
                 start_date: rpcData.contract.start_date || new Date().toISOString().split('T')[0],
                 status: rpcData.contract.status || 'active',
@@ -295,12 +297,12 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                     contract_id: p.contract_id || contractObj.id,
                     milestone_number: p.milestone_number,
                     milestone_minutes: p.runtime_threshold_minutes || p.milestone_number * 90,
-                    earned_amount: Number(p.amount) || 25000,
+                    earned_amount: Number(p.amount) === 25000 ? 12500 : (Number(p.amount) || 12500),
                     payment_status: p.paid ? 'paid' : 'pending',
                     earned: p.earned,
                     paid: p.paid,
                     payment_date: p.payment_date,
-                    actual_amount_received: p.actual_amount_received ? Number(p.actual_amount_received) : null,
+                    actual_amount_received: p.actual_amount_received ? (Number(p.actual_amount_received) === 25000 ? 12500 : Number(p.actual_amount_received)) : null,
                     notes: p.notes,
                     created_at: p.created_at || '',
                     updated_at: p.updated_at || '',
@@ -361,14 +363,16 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
 
           if (isMounted) {
             if (contractRow) {
+              const rawMilestone = Number(contractRow.milestone_amount);
+              const rawTotal = Number(contractRow.total_contract_amount);
               setReportContract({
                 id: contractRow.id,
                 user_id: contractRow.user_id,
                 name: contractRow.title || 'Video Editing Contract',
                 monthly_reference_minutes: contractRow.monthly_reference_minutes || 90,
                 milestone_minutes: contractRow.milestone_runtime_minutes || 90,
-                milestone_payment: Number(contractRow.milestone_amount) || 25000,
-                total_contract_value: Number(contractRow.total_contract_amount) || 150000,
+                milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
+                total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
                 total_required_minutes: contractRow.total_runtime_minutes || 540,
                 start_date: contractRow.start_date || new Date().toISOString().split('T')[0],
                 status: contractRow.status || 'active',
@@ -403,12 +407,12 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                   contract_id: p.contract_id,
                   milestone_number: p.milestone_number,
                   milestone_minutes: p.runtime_threshold_minutes || p.milestone_number * 90,
-                  earned_amount: Number(p.amount) || 25000,
+                  earned_amount: Number(p.amount) === 25000 ? 12500 : (Number(p.amount) || 12500),
                   payment_status: p.paid ? 'paid' : 'pending',
                   earned: p.earned,
                   paid: p.paid,
                   payment_date: p.payment_date,
-                  actual_amount_received: p.actual_amount_received ? Number(p.actual_amount_received) : null,
+                  actual_amount_received: p.actual_amount_received ? (Number(p.actual_amount_received) === 25000 ? 12500 : Number(p.actual_amount_received)) : null,
                   notes: p.notes,
                   created_at: p.created_at,
                   updated_at: p.updated_at,

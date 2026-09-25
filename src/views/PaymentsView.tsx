@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Clock,
   Calendar,
-  Edit2,
   TrendingUp,
   ChevronDown,
   ChevronRight,
@@ -17,7 +16,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatCurrency, formatMinutesDisplay } from '../lib/calculations';
-import { PaymentModal } from '../components/PaymentModal';
 import { YouTubeThumbnail } from '../components/YouTubeThumbnail';
 import { useYouTubeMetadata } from '../lib/youtube';
 
@@ -92,10 +90,8 @@ export const PaymentsView: React.FC = () => {
   const {
     contract,
     editingCyclesSummary,
-    payments,
   } = useApp();
 
-  const [selectedCycle, setSelectedCycle] = useState<EditingCycle | null>(null);
   const [expandedCycles, setExpandedCycles] = useState<Record<number, boolean>>({
     1: true, // Default open cycle 1
   });
@@ -359,22 +355,6 @@ export const PaymentsView: React.FC = () => {
                         {cycle.completedMinutes.toFixed(1)} / {cycle.targetMinutes}m
                       </div>
                     </div>
-
-                    {/* Edit payment button for completed cycle */}
-                    {cycle.status === 'completed' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedCycle(cycle);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors border border-slate-700 shadow-sm shrink-0"
-                        title="Edit Payment Details"
-                      >
-                        <Edit2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Edit Payment</span>
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -438,13 +418,6 @@ export const PaymentsView: React.FC = () => {
           })}
         </div>
       </div>
-
-      {/* Edit Payment Details Modal */}
-      <PaymentModal
-        cycle={selectedCycle}
-        isOpen={Boolean(selectedCycle)}
-        onClose={() => setSelectedCycle(null)}
-      />
     </div>
   );
 };

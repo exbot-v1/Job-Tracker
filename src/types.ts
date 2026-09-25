@@ -42,9 +42,9 @@ export interface Contract {
   monthly_reference_minutes: number; // default 90
   milestone_minutes: number;         // default 90
   milestone_runtime_minutes?: number;
-  milestone_payment: number;         // default 25000 (৳)
+  milestone_payment: number;         // default 12500 (৳)
   milestone_amount?: number;
-  total_contract_value: number;      // default 150000 (৳)
+  total_contract_value: number;      // default 75000 (৳)
   total_contract_amount?: number;
   total_required_minutes: number;    // default 540 (90 * 6)
   total_runtime_minutes?: number;

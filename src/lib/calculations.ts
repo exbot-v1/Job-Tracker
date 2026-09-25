@@ -196,7 +196,7 @@ export function calculateMilestones(
     const thresholdMinutes = i * contract.milestone_minutes;
     const thresholdSeconds = thresholdMinutes * 60;
     const paymentRecord = payments.find((p) => p.milestone_number === i);
-    const cyclePayment = Number(paymentRecord?.amount ?? paymentRecord?.earned_amount) || contract.milestone_payment;
+    const cyclePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || 12500);
     const cumulativePayment = i * cyclePayment;
     const isEarned = totalCompletedSeconds >= thresholdSeconds;
 
@@ -450,7 +450,7 @@ export function calculateMonthlyPace(
  * 2. Videos crossing milestone boundaries are logically split into contributions without modifying the original video record.
  * 3. Sum of all cycle contribution seconds equals the total completed seconds (capped at 540 min contract limit).
  * 4. Never lose seconds, never double count seconds.
- * 5. Exactly 6 payable contract cycles (540 min / ৳150,000 total).
+ * 5. Exactly 6 payable contract cycles (540 min / ৳75,000 total).
  */
 export function calculateEditingCycles(
   videos: Video[],
@@ -459,11 +459,13 @@ export function calculateEditingCycles(
 ): EditingCyclesSummary {
   const milestoneMinutes = contract.milestone_minutes || contract.milestone_runtime_minutes || 90;
   const milestoneSeconds = milestoneMinutes * 60;
-  const milestonePayment = contract.milestone_payment || contract.milestone_amount || 25000;
+  const milestonePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || contract.milestone_amount || 12500);
   const totalRequiredMinutes = contract.total_required_minutes || contract.total_runtime_minutes || 540;
   const totalRequiredSeconds = totalRequiredMinutes * 60;
-  const totalContractValue = contract.total_contract_value || contract.total_contract_amount || 150000;
   const totalCyclesCount = Math.max(1, Math.round(totalRequiredMinutes / milestoneMinutes));
+  const totalContractValue = (contract.total_contract_value === 150000 || !contract.total_contract_value)
+    ? (milestonePayment * totalCyclesCount)
+    : (contract.total_contract_value || contract.total_contract_amount || 75000);
 
   // Sort completed videos strictly chronologically
   const sortedVideos = [...videos].sort((a, b) => {
@@ -485,7 +487,7 @@ export function calculateEditingCycles(
   for (let i = 1; i <= totalCyclesCount; i++) {
     const paymentRecord = payments.find((p) => p.milestone_number === i);
     const isPaid = paymentRecord?.payment_status === 'paid' || paymentRecord?.paid === true;
-    const cyclePaymentAmount = Number(paymentRecord?.amount ?? paymentRecord?.earned_amount) || milestonePayment;
+    const cyclePaymentAmount = milestonePayment;
 
     cycles.push({
       cycleNumber: i,
@@ -508,7 +510,9 @@ export function calculateEditingCycles(
       isEarned: false,
       isPaid,
       paymentAmount: cyclePaymentAmount,
-      actualAmountReceived: paymentRecord?.actual_amount_received ?? (isPaid ? cyclePaymentAmount : null),
+      actualAmountReceived: paymentRecord?.actual_amount_received
+        ? (paymentRecord.actual_amount_received === 25000 ? 12500 : paymentRecord.actual_amount_received)
+        : (isPaid ? cyclePaymentAmount : null),
       paymentDate: paymentRecord?.payment_date ?? null,
       paymentRecord,
       contributions: [],

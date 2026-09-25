@@ -209,9 +209,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           title: 'Video Editing Contract',
           status: 'active',
           milestone_runtime_minutes: 90,
-          milestone_amount: 25000,
+          milestone_amount: 12500,
           total_runtime_minutes: 540,
-          total_contract_amount: 150000,
+          total_contract_amount: 75000,
           monthly_reference_minutes: 90,
           start_date: new Date().toISOString().split('T')[0],
         };
@@ -229,8 +229,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name: createdContract.title || 'Video Editing Contract',
             monthly_reference_minutes: createdContract.monthly_reference_minutes || 90,
             milestone_minutes: createdContract.milestone_runtime_minutes || 90,
-            milestone_payment: Number(createdContract.milestone_amount) || 25000,
-            total_contract_value: Number(createdContract.total_contract_amount) || 150000,
+            milestone_payment: Number(createdContract.milestone_amount) === 25000 ? 12500 : (Number(createdContract.milestone_amount) || 12500),
+            total_contract_value: Number(createdContract.total_contract_amount) === 150000 ? 75000 : (Number(createdContract.total_contract_amount) || 75000),
             total_required_minutes: createdContract.total_runtime_minutes || 540,
             start_date: createdContract.start_date || new Date().toISOString().split('T')[0],
             status: createdContract.status || 'active',
@@ -244,14 +244,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         }
       } else {
+        const rawMilestone = Number(contractData.milestone_amount);
+        const rawTotal = Number(contractData.total_contract_amount);
         activeContract = {
           id: contractData.id,
           user_id: contractData.user_id,
           name: contractData.title || 'Video Editing Contract',
           monthly_reference_minutes: contractData.monthly_reference_minutes || 90,
           milestone_minutes: contractData.milestone_runtime_minutes || 90,
-          milestone_payment: Number(contractData.milestone_amount) || 25000,
-          total_contract_value: Number(contractData.total_contract_amount) || 150000,
+          milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
+          total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
           total_required_minutes: contractData.total_runtime_minutes || 540,
           start_date: contractData.start_date || new Date().toISOString().split('T')[0],
           status: contractData.status || 'active',
@@ -302,14 +304,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           contract_id: p.contract_id,
           milestone_number: p.milestone_number,
           milestone_minutes: p.runtime_threshold_minutes || p.milestone_number * 90,
-          earned_amount: Number(p.amount) || 25000,
+          earned_amount: Number(p.amount) === 25000 ? 12500 : (Number(p.amount) || 12500),
           payment_status: p.paid ? 'paid' : 'pending',
           earned: p.earned,
           earned_at: p.earned_at,
           paid: p.paid,
           paid_at: p.paid_at,
           payment_date: p.payment_date,
-          actual_amount_received: p.actual_amount_received ? Number(p.actual_amount_received) : null,
+          actual_amount_received: p.actual_amount_received
+            ? (Number(p.actual_amount_received) === 25000 ? 12500 : Number(p.actual_amount_received))
+            : null,
           notes: p.notes,
           created_at: p.created_at,
           updated_at: p.updated_at,
@@ -506,7 +510,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             triggerMilestoneCelebration('Contract Completed!');
             addToast({
               type: 'success',
-              title: '🎉 CONTRACT COMPLETED! ৳150,000 Earned',
+              title: '🎉 CONTRACT COMPLETED! ৳75,000 Earned',
               message: 'Congratulations! You have completed all 540 required minutes of edited runtime!',
               duration: 7000,
             });
