@@ -53,7 +53,7 @@ export const ContractCompletionBanner: React.FC = () => {
         <div className="mt-4 pt-3 border-t border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-300/90 font-medium">
           <Clock className="w-4 h-4 shrink-0 text-emerald-400" />
           <span>
-            Post-Contract Work: <strong>{formatSecondsHuman(progress.postContractSeconds)}</strong> ({formatMinutesDisplay(progress.postContractMinutes)}) recorded beyond the initial 540-minute contractual scope.
+            Post-Contract Work: <strong>{formatSecondsHuman(progress.postContractSeconds)}</strong> ({formatMinutesDisplay(progress.postContractMinutes)}) recorded beyond the initial {contract.total_required_minutes}-minute contractual scope.
           </span>
         </div>
       )}

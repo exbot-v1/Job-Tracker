@@ -302,7 +302,7 @@ export const AddVideoModal: React.FC = () => {
               {projection.isWillCompleteContract && (
                 <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold flex items-center gap-1.5 text-[11px]">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>🏆 Full 540-minute contract completion threshold will be achieved!</span>
+                  <span>🏆 Full {contract.total_required_minutes}-minute contract completion threshold will be achieved!</span>
                 </div>
               )}
             </div>

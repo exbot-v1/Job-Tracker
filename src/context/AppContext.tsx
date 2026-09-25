@@ -210,8 +210,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'active',
           milestone_runtime_minutes: 90,
           milestone_amount: 12500,
-          total_runtime_minutes: 540,
-          total_contract_amount: 75000,
+          total_runtime_minutes: 1080,
+          total_contract_amount: 150000,
           monthly_reference_minutes: 90,
           start_date: new Date().toISOString().split('T')[0],
         };
@@ -230,8 +230,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             monthly_reference_minutes: createdContract.monthly_reference_minutes || 90,
             milestone_minutes: createdContract.milestone_runtime_minutes || 90,
             milestone_payment: Number(createdContract.milestone_amount) === 25000 ? 12500 : (Number(createdContract.milestone_amount) || 12500),
-            total_contract_value: Number(createdContract.total_contract_amount) === 150000 ? 75000 : (Number(createdContract.total_contract_amount) || 75000),
-            total_required_minutes: createdContract.total_runtime_minutes || 540,
+            total_contract_value: Number(createdContract.total_contract_amount) === 75000 || !createdContract.total_contract_amount ? 150000 : (Number(createdContract.total_contract_amount) || 150000),
+            total_required_minutes: createdContract.total_runtime_minutes === 540 || !createdContract.total_runtime_minutes ? 1080 : createdContract.total_runtime_minutes,
             start_date: createdContract.start_date || new Date().toISOString().split('T')[0],
             status: createdContract.status || 'active',
             created_at: createdContract.created_at,
@@ -246,15 +246,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         const rawMilestone = Number(contractData.milestone_amount);
         const rawTotal = Number(contractData.total_contract_amount);
+        const finalMilestonePayment = rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone;
+        const finalTotalContractValue = rawTotal === 75000 || !rawTotal ? 150000 : rawTotal;
+        const finalTotalRequiredMinutes = contractData.total_runtime_minutes === 540 || !contractData.total_runtime_minutes ? 1080 : contractData.total_runtime_minutes;
+
+        // Auto-migrate database values to 150000 tk / 1080 min if prior defaults existed
+        if (rawTotal === 75000 || rawMilestone === 25000 || contractData.total_runtime_minutes === 540) {
+          (async () => {
+            try {
+              await supabase
+                .from('contracts')
+                .update({
+                  milestone_amount: finalMilestonePayment,
+                  total_contract_amount: finalTotalContractValue,
+                  total_runtime_minutes: finalTotalRequiredMinutes,
+                })
+                .eq('id', contractData.id);
+            } catch {
+              // ignore background migration error
+            }
+          })();
+        }
+
         activeContract = {
           id: contractData.id,
           user_id: contractData.user_id,
           name: contractData.title || 'Video Editing Contract',
           monthly_reference_minutes: contractData.monthly_reference_minutes || 90,
           milestone_minutes: contractData.milestone_runtime_minutes || 90,
-          milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
-          total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
-          total_required_minutes: contractData.total_runtime_minutes || 540,
+          milestone_payment: finalMilestonePayment,
+          total_contract_value: finalTotalContractValue,
+          total_required_minutes: finalTotalRequiredMinutes,
           start_date: contractData.start_date || new Date().toISOString().split('T')[0],
           status: contractData.status || 'active',
           created_at: contractData.created_at,
@@ -510,8 +532,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             triggerMilestoneCelebration('Contract Completed!');
             addToast({
               type: 'success',
-              title: '🎉 CONTRACT COMPLETED! ৳75,000 Earned',
-              message: 'Congratulations! You have completed all 540 required minutes of edited runtime!',
+              title: `🎉 CONTRACT COMPLETED! ৳${contract.total_contract_value.toLocaleString()} Earned`,
+              message: `Congratulations! You have completed all ${contract.total_required_minutes} required minutes of edited runtime!`,
               duration: 7000,
             });
           } else if (nextProgress.completedMilestonesCount > prevCompletedMilestones) {

@@ -35,12 +35,12 @@ export const ContractTimeline: React.FC<ContractTimelineProps> = ({
           <h3 className="text-lg font-bold text-slate-100 mt-0.5">Contract Timeline</h3>
         </div>
         <p className="text-xs text-[#94A3B8]">
-          6 sequential 90-minute blocks • Total {contract.total_required_minutes}m target
+          {milestones.length} sequential {contract.milestone_minutes}-minute blocks • Total {contract.total_required_minutes}m target
         </p>
       </div>
 
-      {/* Timeline Grid (6 Steps) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+      {/* Timeline Grid (Dynamic Steps) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
         {milestones.map((m) => {
           const isCompleted = m.status === 'completed';
           const isCurrent = m.status === 'current';

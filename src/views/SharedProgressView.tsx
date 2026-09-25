@@ -266,8 +266,8 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                 monthly_reference_minutes: rpcData.contract.monthly_reference_minutes || 90,
                 milestone_minutes: rpcData.contract.milestone_runtime_minutes || 90,
                 milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
-                total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
-                total_required_minutes: rpcData.contract.total_runtime_minutes || 540,
+                total_contract_value: rawTotal === 75000 || !rawTotal ? 150000 : rawTotal,
+                total_required_minutes: rpcData.contract.total_runtime_minutes === 540 || !rpcData.contract.total_runtime_minutes ? 1080 : rpcData.contract.total_runtime_minutes,
                 start_date: rpcData.contract.start_date || new Date().toISOString().split('T')[0],
                 status: rpcData.contract.status || 'active',
                 created_at: rpcData.contract.created_at,
@@ -372,8 +372,8 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                 monthly_reference_minutes: contractRow.monthly_reference_minutes || 90,
                 milestone_minutes: contractRow.milestone_runtime_minutes || 90,
                 milestone_payment: rawMilestone === 25000 || !rawMilestone ? 12500 : rawMilestone,
-                total_contract_value: rawTotal === 150000 || !rawTotal ? 75000 : rawTotal,
-                total_required_minutes: contractRow.total_runtime_minutes || 540,
+                total_contract_value: rawTotal === 75000 || !rawTotal ? 150000 : rawTotal,
+                total_required_minutes: contractRow.total_runtime_minutes === 540 || !contractRow.total_runtime_minutes ? 1080 : contractRow.total_runtime_minutes,
                 start_date: contractRow.start_date || new Date().toISOString().split('T')[0],
                 status: contractRow.status || 'active',
                 created_at: contractRow.created_at,
@@ -568,15 +568,15 @@ export const SharedProgressView: React.FC<SharedProgressViewProps> = ({
                   Contract Scope Fully Completed!
                 </h2>
                 <p className="text-xs text-emerald-300/90 mt-0.5">
-                  All 540 required minutes of completed video editing delivered across all 6 payment cycles ({formatCurrency(reportContract.total_contract_value)} total earned).
+                  All {reportContract.total_required_minutes} required minutes of completed video editing delivered across all {totalCyclesCount} payment cycles ({formatCurrency(reportContract.total_contract_value)} total earned).
                 </p>
               </div>
             </div>
             <div className="text-center sm:text-right shrink-0">
               <div className="text-xl font-black text-emerald-400 font-mono">
-                540:00 / 540:00 min
+                {reportContract.total_required_minutes}:00 / {reportContract.total_required_minutes}:00 min
               </div>
-              <div className="text-xs text-[#94A3B8] font-medium">6 of 6 Cycles Reached</div>
+              <div className="text-xs text-[#94A3B8] font-medium">{totalCyclesCount} of {totalCyclesCount} Cycles Reached</div>
             </div>
           </div>
         )}

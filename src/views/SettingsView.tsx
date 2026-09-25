@@ -178,8 +178,8 @@ CREATE TABLE IF NOT EXISTS public.contracts (
   monthly_reference_minutes NUMERIC NOT NULL DEFAULT 90,
   milestone_minutes NUMERIC NOT NULL DEFAULT 90,
   milestone_payment NUMERIC NOT NULL DEFAULT 12500,
-  total_contract_value NUMERIC NOT NULL DEFAULT 75000,
-  total_required_minutes NUMERIC NOT NULL DEFAULT 540,
+  total_contract_value NUMERIC NOT NULL DEFAULT 150000,
+  total_required_minutes NUMERIC NOT NULL DEFAULT 1080,
   start_date DATE NOT NULL DEFAULT CURRENT_DATE,
   status TEXT NOT NULL DEFAULT 'active'
 );
@@ -306,7 +306,7 @@ CREATE POLICY "Users can only access own payments" ON public.payments FOR ALL US
                     onChange={(e) => setTotalMin(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Default: 540 minutes (90 × 6)</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block">Default: 1080 minutes (90 × 12)</span>
                 </div>
 
                 <div>
@@ -321,7 +321,7 @@ CREATE POLICY "Users can only access own payments" ON public.payments FOR ALL US
                     onChange={(e) => setTotalVal(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Default: ৳75,000</span>
+                  <span className="text-[10px] text-slate-400 mt-1 block">Default: ৳150,000</span>
                 </div>
 
                 <div>

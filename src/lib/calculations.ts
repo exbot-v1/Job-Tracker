@@ -104,9 +104,21 @@ export function calculateContractProgress(
   const totalCompletedSeconds = videos.reduce((sum, v) => sum + (v.duration_seconds || 0), 0);
   const totalCompletedMinutes = totalCompletedSeconds / 60;
 
-  const milestoneSeconds = contract.milestone_minutes * 60;
-  const totalRequiredSeconds = contract.total_required_minutes * 60;
-  const totalMilestonesCount = Math.round(contract.total_required_minutes / contract.milestone_minutes);
+  const milestoneMinutes = contract.milestone_minutes || contract.milestone_runtime_minutes || 90;
+  const milestoneSeconds = milestoneMinutes * 60;
+  const milestonePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || 12500);
+
+  const totalContractVal = (contract.total_contract_value === 75000 || !contract.total_contract_value)
+    ? 150000
+    : (contract.total_contract_value || 150000);
+
+  const derivedCycles = Math.max(1, Math.round(totalContractVal / milestonePayment));
+  const rawReqMin = contract.total_required_minutes || contract.total_runtime_minutes;
+  const totalRequiredMinutes = (rawReqMin === 540 || !rawReqMin)
+    ? derivedCycles * milestoneMinutes
+    : rawReqMin;
+  const totalRequiredSeconds = totalRequiredMinutes * 60;
+  const totalMilestonesCount = Math.max(1, Math.round(totalRequiredMinutes / milestoneMinutes));
 
   const completedMilestonesCount = Math.floor(totalCompletedSeconds / milestoneSeconds);
 
@@ -185,18 +197,30 @@ export function calculateMilestones(
   payments: PaymentRecord[] = []
 ): MilestoneInfo[] {
   const totalCompletedSeconds = videos.reduce((sum, v) => sum + (v.duration_seconds || 0), 0);
-  const milestoneSeconds = contract.milestone_minutes * 60;
-  const totalMilestonesCount = Math.round(contract.total_required_minutes / contract.milestone_minutes);
+  const milestoneMinutes = contract.milestone_minutes || 90;
+  const milestoneSeconds = milestoneMinutes * 60;
+  const milestonePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || 12500);
+
+  const totalContractVal = (contract.total_contract_value === 75000 || !contract.total_contract_value)
+    ? 150000
+    : (contract.total_contract_value || 150000);
+
+  const derivedCycles = Math.max(1, Math.round(totalContractVal / milestonePayment));
+  const rawReqMin = contract.total_required_minutes || contract.total_runtime_minutes;
+  const totalRequiredMinutes = (rawReqMin === 540 || !rawReqMin)
+    ? derivedCycles * milestoneMinutes
+    : rawReqMin;
+  const totalMilestonesCount = Math.max(1, Math.round(totalRequiredMinutes / milestoneMinutes));
 
   const completedMilestonesCount = Math.floor(totalCompletedSeconds / milestoneSeconds);
 
   const milestones: MilestoneInfo[] = [];
 
   for (let i = 1; i <= totalMilestonesCount; i++) {
-    const thresholdMinutes = i * contract.milestone_minutes;
+    const thresholdMinutes = i * milestoneMinutes;
     const thresholdSeconds = thresholdMinutes * 60;
     const paymentRecord = payments.find((p) => p.milestone_number === i);
-    const cyclePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || 12500);
+    const cyclePayment = milestonePayment;
     const cumulativePayment = i * cyclePayment;
     const isEarned = totalCompletedSeconds >= thresholdSeconds;
 
@@ -352,7 +376,10 @@ export function calculateAnalytics(videos: Video[], contract: Contract): Analyti
   }
 
   // Estimated months remaining based on average production pace
-  const minutesRemaining = Math.max(0, contract.total_required_minutes - totalMinutes);
+  const totalReqMin = (contract.total_required_minutes === 540 || !contract.total_required_minutes)
+    ? 1080
+    : contract.total_required_minutes;
+  const minutesRemaining = Math.max(0, totalReqMin - totalMinutes);
   let estimatedMonthsRemaining: number | null = null;
   let estimatedMonthsRemainingFormatted = 'Not enough data';
 
@@ -448,9 +475,9 @@ export function calculateMonthlyPace(
  * Invariants strictly enforced:
  * 1. Videos are processed chronologically (completed_at -> created_at -> id).
  * 2. Videos crossing milestone boundaries are logically split into contributions without modifying the original video record.
- * 3. Sum of all cycle contribution seconds equals the total completed seconds (capped at 540 min contract limit).
+ * 3. Sum of all cycle contribution seconds equals the total completed seconds (capped at 1080 min contract limit).
  * 4. Never lose seconds, never double count seconds.
- * 5. Exactly 6 payable contract cycles (540 min / ৳75,000 total).
+ * 5. Exactly 12 payable contract cycles (1080 min / ৳150,000 total).
  */
 export function calculateEditingCycles(
   videos: Video[],
@@ -460,12 +487,18 @@ export function calculateEditingCycles(
   const milestoneMinutes = contract.milestone_minutes || contract.milestone_runtime_minutes || 90;
   const milestoneSeconds = milestoneMinutes * 60;
   const milestonePayment = (contract.milestone_payment === 25000 || !contract.milestone_payment) ? 12500 : (contract.milestone_payment || contract.milestone_amount || 12500);
-  const totalRequiredMinutes = contract.total_required_minutes || contract.total_runtime_minutes || 540;
+
+  const totalContractValue = (contract.total_contract_value === 75000 || !contract.total_contract_value)
+    ? 150000
+    : (contract.total_contract_value || contract.total_contract_amount || 150000);
+
+  const derivedCycles = Math.max(1, Math.round(totalContractValue / milestonePayment));
+  const rawReqMinutes = contract.total_required_minutes || contract.total_runtime_minutes;
+  const totalRequiredMinutes = (rawReqMinutes === 540 || !rawReqMinutes)
+    ? derivedCycles * milestoneMinutes
+    : rawReqMinutes;
   const totalRequiredSeconds = totalRequiredMinutes * 60;
   const totalCyclesCount = Math.max(1, Math.round(totalRequiredMinutes / milestoneMinutes));
-  const totalContractValue = (contract.total_contract_value === 150000 || !contract.total_contract_value)
-    ? (milestonePayment * totalCyclesCount)
-    : (contract.total_contract_value || contract.total_contract_amount || 75000);
 
   // Sort completed videos strictly chronologically
   const sortedVideos = [...videos].sort((a, b) => {
