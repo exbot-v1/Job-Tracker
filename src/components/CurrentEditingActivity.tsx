@@ -38,7 +38,6 @@ const ActivityContributionItem: React.FC<{
           youtubeUrl={contrib.youtubeUrl}
           title={displayTitle}
           className="w-20 h-13 rounded-lg"
-          showPlayBadge={Boolean(contrib.youtubeUrl)}
         />
 
         <div className="min-w-0 space-y-1">
@@ -49,20 +48,20 @@ const ActivityContributionItem: React.FC<{
                 FROM PREVIOUS CYCLE
               </span>
             )}
-            <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate max-w-md">
-              {displayTitle}
-            </h4>
-            {contrib.youtubeUrl && (
+            {contrib.youtubeUrl ? (
               <a
                 href={contrib.youtubeUrl}
                 target="_blank"
-                rel="noreferrer"
-                className="text-[#94A3B8] hover:text-rose-400 text-xs inline-flex items-center gap-1 transition-colors"
-                title="Watch on YouTube"
+                rel="noopener noreferrer"
+                className="text-sm font-bold text-slate-100 hover:text-emerald-300 transition-colors truncate max-w-md block"
+                title={`Watch "${displayTitle}" on YouTube`}
               >
-                <Youtube className="w-3.5 h-3.5 text-rose-500" />
-                <ExternalLink className="w-3 h-3 opacity-60" />
+                {displayTitle}
               </a>
+            ) : (
+              <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate max-w-md">
+                {displayTitle}
+              </h4>
             )}
           </div>
 

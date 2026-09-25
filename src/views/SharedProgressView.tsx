@@ -53,13 +53,24 @@ const SharedContributionCard: React.FC<{
           youtubeUrl={c.youtubeUrl}
           title={displayTitle}
           className="w-16 h-11 rounded-lg shrink-0"
-          showPlayBadge={Boolean(c.youtubeUrl)}
         />
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-slate-100 text-sm truncate max-w-md">
-              {displayTitle}
-            </span>
+            {c.youtubeUrl ? (
+              <a
+                href={c.youtubeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-slate-100 text-sm hover:text-emerald-300 transition-colors truncate max-w-md block"
+                title={`Watch "${displayTitle}" on YouTube`}
+              >
+                {displayTitle}
+              </a>
+            ) : (
+              <span className="font-bold text-slate-100 text-sm truncate max-w-md">
+                {displayTitle}
+              </span>
+            )}
             {c.isFromPreviousCycle && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
                 <CornerDownRight className="w-3 h-3 text-amber-400" />
@@ -142,11 +153,22 @@ const SharedReportVideoRow: React.FC<{
           youtubeUrl={video.youtube_url}
           title={displayTitle}
           className="w-14 h-9 rounded-md"
-          showPlayBadge={Boolean(video.youtube_url)}
         />
       </td>
       <td className="py-3 pr-4 font-semibold text-slate-200 max-w-xs sm:max-w-md">
-        <div className="truncate">{displayTitle}</div>
+        {video.youtube_url ? (
+          <a
+            href={video.youtube_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-100 hover:text-emerald-400 font-bold transition-colors truncate block"
+            title={`Watch "${displayTitle}" on YouTube`}
+          >
+            {displayTitle}
+          </a>
+        ) : (
+          <div className="truncate">{displayTitle}</div>
+        )}
         {video.notes && (
           <div className="text-[11px] text-[#64748B] truncate font-normal mt-0.5">
             {video.notes}

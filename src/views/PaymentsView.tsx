@@ -48,12 +48,23 @@ const CycleContributionItem: React.FC<{
           youtubeUrl={c.youtubeUrl}
           title={displayTitle}
           className="w-14 h-9 rounded-md shrink-0"
-          showPlayBadge={Boolean(c.youtubeUrl)}
         />
         <div className="min-w-0">
-          <div className="font-bold text-xs sm:text-sm text-slate-200 truncate">
-            {displayTitle}
-          </div>
+          {c.youtubeUrl ? (
+            <a
+              href={c.youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-xs sm:text-sm text-slate-200 hover:text-emerald-400 transition-colors truncate block"
+              title={`Watch "${displayTitle}" on YouTube`}
+            >
+              {displayTitle}
+            </a>
+          ) : (
+            <div className="font-bold text-xs sm:text-sm text-slate-200 truncate">
+              {displayTitle}
+            </div>
+          )}
           <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
             <span>Completed: {c.completionDate}</span>
             <span>•</span>

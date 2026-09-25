@@ -36,27 +36,14 @@ export const YouTubeThumbnail: React.FC<YouTubeThumbnailProps> = ({
   }
 
   const content = (
-    <>
-      <img
-        src={thumbnailUrl}
-        alt={title}
-        referrerPolicy="no-referrer"
-        crossOrigin="anonymous"
-        onError={() => setHasError(true)}
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-      />
-      {showPlayBadge && (
-        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 flex items-center justify-center transition-colors">
-          {/* Classic YouTube Red Play Badge */}
-          <div
-            className="w-7 h-5 rounded-[5px] bg-[#FF0000] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200"
-            title="Watch on YouTube"
-          >
-            <Play className="w-2.5 h-2.5 fill-white text-white ml-0.5" />
-          </div>
-        </div>
-      )}
-    </>
+    <img
+      src={thumbnailUrl}
+      alt={title}
+      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
+      onError={() => setHasError(true)}
+      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+    />
   );
 
   const containerClasses = `relative rounded-lg overflow-hidden bg-slate-950 border border-[#2B3240] shrink-0 group block cursor-pointer select-none ${

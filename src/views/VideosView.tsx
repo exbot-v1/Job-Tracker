@@ -44,14 +44,25 @@ const VideoTableRow: React.FC<{
           youtubeUrl={video.youtube_url}
           title={displayTitle}
           className="w-16 h-10 rounded-md"
-          showPlayBadge={Boolean(video.youtube_url)}
         />
       </td>
 
       <td className="py-3.5 px-4">
-        <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
-          {displayTitle}
-        </div>
+        {video.youtube_url ? (
+          <a
+            href={video.youtube_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-bold text-slate-100 hover:text-emerald-400 transition-colors inline-block max-w-md truncate"
+            title={`Watch "${displayTitle}" on YouTube`}
+          >
+            {displayTitle}
+          </a>
+        ) : (
+          <div className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
+            {displayTitle}
+          </div>
+        )}
         {video.notes && (
           <div className="text-[11px] text-slate-400 truncate max-w-md mt-0.5 font-normal">
             {video.notes}
@@ -118,12 +129,23 @@ const VideoMobileCard: React.FC<{
           youtubeUrl={video.youtube_url}
           title={displayTitle}
           className="w-20 h-13 rounded-lg shrink-0"
-          showPlayBadge={Boolean(video.youtube_url)}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-100 truncate">{displayTitle}</h3>
+              {video.youtube_url ? (
+                <a
+                  href={video.youtube_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-bold text-slate-100 hover:text-emerald-400 transition-colors block truncate"
+                  title={`Watch "${displayTitle}" on YouTube`}
+                >
+                  {displayTitle}
+                </a>
+              ) : (
+                <h3 className="text-sm font-bold text-slate-100 truncate">{displayTitle}</h3>
+              )}
               {video.notes && (
                 <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal">
                   {video.notes}
