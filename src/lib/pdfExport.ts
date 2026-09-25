@@ -4,7 +4,12 @@ import {
   getCurrentEditingPeriodDetails,
   formatSecondsDigital,
 } from './calculations';
-import { getYouTubeThumbnailUrl, loadImageAsBase64 } from './youtube';
+import {
+  getYouTubeThumbnailUrl,
+  loadImageAsBase64,
+  fetchYouTubeMetadata,
+  getCachedYouTubeTitle,
+} from './youtube';
 
 export interface PDFExportOptions {
   contract: Contract;
@@ -142,10 +147,28 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
   // Calculate current period & progress
   const period = getCurrentEditingPeriodDetails(videos, contract, payments);
 
-  // Pre-load video thumbnails if any
+  // Pre-load video thumbnails and YouTube titles if any
   const thumbnailMap: Record<string, string | null> = {};
+  const ytTitleMap: Record<string, string | null> = {};
+
   for (const contrib of period.contributions) {
     if (contrib.youtubeUrl) {
+      // 1. Fetch or get cached YouTube Title
+      try {
+        const cached = getCachedYouTubeTitle(contrib.youtubeUrl);
+        if (cached) {
+          ytTitleMap[contrib.youtubeUrl] = cached;
+        } else {
+          const meta = await fetchYouTubeMetadata(contrib.youtubeUrl);
+          if (meta?.title) {
+            ytTitleMap[contrib.youtubeUrl] = meta.title;
+          }
+        }
+      } catch {
+        ytTitleMap[contrib.youtubeUrl] = null;
+      }
+
+      // 2. Preload thumbnail
       const thumbUrl = getYouTubeThumbnailUrl(contrib.youtubeUrl, 'mq');
       if (thumbUrl) {
         try {
@@ -373,8 +396,12 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
         doc.roundedRect(colX.preview, y + 1.8, 14, 9.5, 1, 1, 'F');
       }
 
-      // Render Video Title with complete Bangla / Unicode glyph shaping via Canvas Text Image
-      const titleImg = renderUnicodeTextToCanvasImage(contrib.videoTitle, {
+      // Render Video Title (prefer fetched YouTube title if available, otherwise fallback to stored title)
+      const displayTitle = (contrib.youtubeUrl && ytTitleMap[contrib.youtubeUrl])
+        ? ytTitleMap[contrib.youtubeUrl]!
+        : ((contrib.youtubeUrl && getCachedYouTubeTitle(contrib.youtubeUrl)) || contrib.videoTitle);
+
+      const titleImg = renderUnicodeTextToCanvasImage(displayTitle, {
         fontSizePt: 8.5,
         fontWeight: 'bold',
         color: '#0F172A',
@@ -389,13 +416,13 @@ export async function generateEditingStatusPDF(options: PDFExportOptions): Promi
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
           doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-          doc.text(contrib.videoTitle.slice(0, 32), colX.title, y + 6);
+          doc.text(displayTitle.slice(0, 32), colX.title, y + 6);
         }
       } else {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-        doc.text(contrib.videoTitle.slice(0, 32), colX.title, y + 6);
+        doc.text(displayTitle.slice(0, 32), colX.title, y + 6);
       }
 
       // FROM PREVIOUS CYCLE notice or YouTube verified notice
